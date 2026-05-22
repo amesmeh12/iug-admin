@@ -1,0 +1,674 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>استبانة تقييم الموظفين</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="styles.css">
+    <!-- SheetJS for Excel Import/Export with Styling support -->
+    <script src="https://cdn.jsdelivr.net/npm/xlsx-js-style@1.2.0/dist/xlsx.bundle.js"></script>
+    <!-- JSZip for creating ZIP files -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+    <!-- Chart.js for beautiful charts -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+</head>
+<body>
+    <div class="app-container">
+        <header class="app-header">
+            <div class="header-content">
+                <h1>استبانة تقييم الموظفين</h1>
+                <p>حسب معايير الأداء والحاجة</p>
+            </div>
+            <div class="header-actions">
+                <button type="button" class="btn btn-outline" id="export-data-btn">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>
+                    تصدير البيانات
+                </button>
+                <button type="button" class="btn btn-outline" id="export-template-btn">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline><line x1="16" y1="13" x2="8" y2="13"></line><line x1="16" y1="17" x2="8" y2="17"></line><polyline points="10 9 9 9 8 9"></polyline></svg>
+                    تصدير قالب
+                </button>
+                <div class="excel-import-widget">
+                    <label for="excel-upload" class="upload-btn">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline><line x1="12" y1="18" x2="12" y2="12"></line><line x1="9" y1="15" x2="15" y2="15"></line></svg>
+                        استيراد بيانات
+                    </label>
+                    <input type="file" id="excel-upload" accept=".xlsx, .xls" class="hidden-input">
+                </div>
+                <button type="button" class="btn btn-outline" id="settings-btn">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"></circle><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path></svg>
+                    الإعدادات
+                </button>
+                <button type="button" class="btn btn-danger" id="delete-all-btn">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg>
+                    حذف التقييمات
+                </button>
+            </div>
+        </header>
+        
+        <!-- Tabs -->
+        <div class="tabs-container">
+            <button class="tab-btn active" data-target="form-view">عرض النموذج</button>
+            <button class="tab-btn" data-target="table-view">عرض الجدول (<span id="saved-count">0</span>)</button>
+            <button class="tab-btn" data-target="emp-data-view">بيانات الموظفين</button>
+            <button class="tab-btn" data-target="stats-view">الإحصائيات الجداول</button>
+            <button class="tab-btn" data-target="report-view">التقرير البصري</button>
+        </div>
+
+        <!-- Form View -->
+        <div id="form-view" class="view-section active">
+            <form id="evaluation-form" class="evaluation-form">
+                
+                <!-- Basic Info Section -->
+                <section class="form-section fade-in">
+                    <div class="section-header">
+                        <h2>البيانات الأساسية</h2>
+                    </div>
+                    <div class="grid-2-col">
+                        <div class="input-group">
+                            <label for="emp-id">الرقم الوظيفي</label>
+                            <input type="text" id="emp-id" name="emp-id" placeholder="أدخل الرقم الوظيفي" required>
+                        </div>
+                        <div class="input-group">
+                            <label for="emp-name">اسم الموظف</label>
+                            <input type="text" id="emp-name" name="emp-name" placeholder="أدخل اسم الموظف رباعياً" required>
+                        </div>
+                        <div class="input-group">
+                            <label for="emp-title">المسمى الوظيفي</label>
+                            <input type="text" id="emp-title" name="emp-title" placeholder="أدخل المسمى الوظيفي">
+                        </div>
+                        <div class="input-group">
+                            <label for="emp-dept">الدائرة</label>
+                            <input type="text" id="emp-dept" name="emp-dept" placeholder="أدخل الدائرة">
+                        </div>
+                        <div class="input-group">
+                            <label for="emp-section">القسم</label>
+                            <input type="text" id="emp-section" name="emp-section" placeholder="أدخل القسم">
+                        </div>
+                        <div class="input-group">
+                            <label for="emp-gender">الجنس</label>
+                            <select id="emp-gender" name="emp-gender" style="width: 100%; padding: 0.8rem; border: 1px solid var(--border-color); border-radius: var(--radius-md);">
+                                <option value="ذكر" selected>ذكر</option>
+                                <option value="أنثى">أنثى</option>
+                            </select>
+                        </div>
+                        <div class="input-group">
+                            <label for="emp-dob">تاريخ الميلاد</label>
+                            <input type="date" id="emp-dob" name="emp-dob" class="small-input" style="width: 100%;">
+                        </div>
+                    </div>
+                </section>
+
+                <!-- Performance Criteria Section -->
+                <section class="form-section fade-in" style="animation-delay: 0.1s">
+                    <div class="section-header">
+                        <h2>أولاً: معايير الأداء</h2>
+                        <div class="score-badge">
+                            المجموع: <span id="perf-total">0</span> / 15
+                        </div>
+                    </div>
+                    <div class="questions-container">
+                        
+                        <div class="question-row">
+                            <div class="question-text">1. الاستمرارية بالفترة السابقة من 2024 حتى الآن</div>
+                            <div class="radio-group perf-group">
+                                <label><input type="radio" name="p1" value="0"> 0</label>
+                                <label><input type="radio" name="p1" value="1"> 1</label>
+                                <label><input type="radio" name="p1" value="2"> 2</label>
+                                <label><input type="radio" name="p1" value="3"> 3</label>
+                            </div>
+                        </div>
+
+                        <div class="question-row">
+                            <div class="question-text">2. الاستجابة للتعليمات والعمل وفق طلب المدير</div>
+                            <div class="radio-group perf-group">
+                                <label><input type="radio" name="p2" value="0"> 0</label>
+                                <label><input type="radio" name="p2" value="1"> 1</label>
+                                <label><input type="radio" name="p2" value="2"> 2</label>
+                                <label><input type="radio" name="p2" value="3"> 3</label>
+                            </div>
+                        </div>
+
+                        <div class="question-row">
+                            <div class="question-text">3. هل تم تقديم شكوى ضد الموظف أو لجان تحقيق؟</div>
+                            <div class="radio-group perf-group">
+                                <label><input type="radio" name="p3" value="0"> 0</label>
+                                <label><input type="radio" name="p3" value="1"> 1</label>
+                                <label><input type="radio" name="p3" value="2"> 2</label>
+                                <label><input type="radio" name="p3" value="3"> 3</label>
+                            </div>
+                        </div>
+
+                        <div class="question-row">
+                            <div class="question-text">4. هل ساهم بتقديم خدمات أخرى غير مهامه الأصلية؟</div>
+                            <div class="radio-group perf-group">
+                                <label><input type="radio" name="p4" value="0"> 0</label>
+                                <label><input type="radio" name="p4" value="1"> 1</label>
+                                <label><input type="radio" name="p4" value="2"> 2</label>
+                                <label><input type="radio" name="p4" value="3"> 3</label>
+                            </div>
+                        </div>
+
+                        <div class="question-row">
+                            <div class="question-text">5. استجاب لتغيير مكانه وفقًا للظروف</div>
+                            <div class="radio-group perf-group">
+                                <label><input type="radio" name="p5" value="0"> 0</label>
+                                <label><input type="radio" name="p5" value="1"> 1</label>
+                                <label><input type="radio" name="p5" value="2"> 2</label>
+                                <label><input type="radio" name="p5" value="3"> 3</label>
+                            </div>
+                        </div>
+
+                    </div>
+                </section>
+
+                <!-- Need Criteria Section -->
+                <section class="form-section fade-in" style="animation-delay: 0.2s">
+                    <div class="section-header">
+                        <h2>ثانياً: معايير الحاجة</h2>
+                        <div class="score-badge highlight">
+                            المجموع: <span id="need-total">0</span> / 30
+                        </div>
+                    </div>
+                    <div class="questions-container">
+                        
+                        <div class="question-row">
+                            <div class="question-text">1. درجة الحاجة للموظف بعينه في المكان المحدد <span class="max-note">(من 6)</span></div>
+                            <div class="radio-group need-group">
+                                <label><input type="radio" name="n1" value="0"> 0</label>
+                                <label><input type="radio" name="n1" value="1"> 1</label>
+                                <label><input type="radio" name="n1" value="2"> 2</label>
+                                <label><input type="radio" name="n1" value="3"> 3</label>
+                                <label><input type="radio" name="n1" value="4"> 4</label>
+                                <label><input type="radio" name="n1" value="5"> 5</label>
+                                <label><input type="radio" name="n1" value="6"> 6</label>
+                            </div>
+                        </div>
+
+                        <div class="question-row">
+                            <div class="question-text">2. عدد أيام الدوام الوجاهي <span class="max-note">(من 6)</span></div>
+                            <div class="radio-group need-group">
+                                <label><input type="radio" name="n2" value="0"> 0</label>
+                                <label><input type="radio" name="n2" value="1"> 1</label>
+                                <label><input type="radio" name="n2" value="2"> 2</label>
+                                <label><input type="radio" name="n2" value="3"> 3</label>
+                                <label><input type="radio" name="n2" value="4"> 4</label>
+                                <label><input type="radio" name="n2" value="5"> 5</label>
+                                <label><input type="radio" name="n2" value="6"> 6</label>
+                            </div>
+                        </div>
+
+                        <div class="question-row">
+                            <div class="question-text">3. هل يمكن إنجاز مهمته إلكترونيا (أتمتة كاملة)؟ <span class="max-note">(من 3)</span></div>
+                            <div class="radio-group need-group">
+                                <label><input type="radio" name="n3" value="0"> 0</label>
+                                <label><input type="radio" name="n3" value="1"> 1</label>
+                                <label><input type="radio" name="n3" value="2"> 2</label>
+                                <label><input type="radio" name="n3" value="3"> 3</label>
+                            </div>
+                        </div>
+
+                        <div class="question-row flex-wrap">
+                            <div class="question-text">
+                                4. حجم المعاملات يوميا <span class="max-note">(أقل من 5 / 5-10 / أكثر من 10) (من 3)</span>
+                            </div>
+                            <div class="input-inline">
+                                <label for="n4_count">العدد:</label>
+                                <input type="number" id="n4_count" name="n4_count" class="small-input" min="0">
+                            </div>
+                            <div class="radio-group need-group">
+                                <label><input type="radio" name="n4" value="0"> 0</label>
+                                <label><input type="radio" name="n4" value="1"> 1</label>
+                                <label><input type="radio" name="n4" value="2"> 2</label>
+                                <label><input type="radio" name="n4" value="3"> 3</label>
+                            </div>
+                        </div>
+
+                        <div class="question-row">
+                            <div class="question-text">5. هل يؤدي مهمة لا يمكن لأي موظف آخر تأديتها؟ (فريد) <span class="max-note">(من 3)</span></div>
+                            <div class="radio-group need-group">
+                                <label><input type="radio" name="n5" value="0"> 0</label>
+                                <label><input type="radio" name="n5" value="1"> 1</label>
+                                <label><input type="radio" name="n5" value="2"> 2</label>
+                                <label><input type="radio" name="n5" value="3"> 3</label>
+                            </div>
+                        </div>
+
+                        <div class="question-row">
+                            <div class="question-text">6. هل مؤهلاته/عمره/قدراته تتناسب مع المهام؟ <span class="max-note">(من 6)</span></div>
+                            <div class="radio-group need-group">
+                                <label><input type="radio" name="n6" value="0"> 0</label>
+                                <label><input type="radio" name="n6" value="1"> 1</label>
+                                <label><input type="radio" name="n6" value="2"> 2</label>
+                                <label><input type="radio" name="n6" value="3"> 3</label>
+                                <label><input type="radio" name="n6" value="4"> 4</label>
+                                <label><input type="radio" name="n6" value="5"> 5</label>
+                                <label><input type="radio" name="n6" value="6"> 6</label>
+                            </div>
+                        </div>
+
+                        <div class="question-row">
+                            <div class="question-text">7. هل عمله موسمي (شهر/شهرين بالسنة)؟ <span class="max-note">(من 3)</span></div>
+                            <div class="radio-group need-group">
+                                <label><input type="radio" name="n7" value="0"> 0</label>
+                                <label><input type="radio" name="n7" value="1"> 1</label>
+                                <label><input type="radio" name="n7" value="2"> 2</label>
+                                <label><input type="radio" name="n7" value="3"> 3</label>
+                            </div>
+                        </div>
+
+                    </div>
+                </section>
+
+                <!-- Committee Decision Section -->
+                <section class="form-section fade-in" style="animation-delay: 0.25s">
+                    <div class="section-header">
+                        <h2>ثالثاً: قرار اللجنة</h2>
+                        <div class="score-badge" style="background-color: #e0e7ff; color: #3730a3;">
+                            المجموع: <span id="comm-total">0</span> / 4
+                        </div>
+                    </div>
+                    <div class="questions-container">
+                        
+                        <div class="question-row">
+                            <div class="question-text">قرار اللجنة <span class="max-note">(من 4)</span></div>
+                            <div class="radio-group comm-group">
+                                <label><input type="radio" name="c1" value="0"> 0</label>
+                                <label><input type="radio" name="c1" value="1"> 1</label>
+                                <label><input type="radio" name="c1" value="2"> 2</label>
+                                <label><input type="radio" name="c1" value="3"> 3</label>
+                                <label><input type="radio" name="c1" value="4"> 4</label>
+                            </div>
+                        </div>
+
+                        <div class="question-row flex-wrap" style="align-items: flex-start; margin-top: 1rem;">
+                            <div class="question-text" style="padding-top: 0.5rem; flex: 0 0 100px;">الملاحظات <span class="max-note">(اختياري)</span></div>
+                            <textarea id="emp-notes" name="emp-notes" rows="3" style="flex: 1; min-width: 250px; padding: 0.8rem; border: 1px solid var(--border-color); border-radius: var(--radius-md); font-family: inherit; font-size: 1rem; resize: vertical;" placeholder="أضف أي ملاحظات أو توصيات هنا..."></textarea>
+                        </div>
+                        
+                        <div class="question-row flex-wrap" style="align-items: flex-start; margin-top: 1rem;">
+                            <div class="question-text" style="padding-top: 0.5rem; flex: 0 0 100px;">ملاحظة2 <span class="max-note">(اختياري)</span></div>
+                            <div style="flex: 1; min-width: 250px;">
+                                <select id="emp-notes2" name="emp-notes2" multiple style="width: 100%; padding: 0.8rem; border: 1px solid var(--border-color); border-radius: var(--radius-md); font-family: inherit; font-size: 1rem; height: 130px;">
+                                    <option value="في الخارج">في الخارج</option>
+                                    <option value="أكاديمي">أكاديمي</option>
+                                    <option value="حالة خاصة">حالة خاصة</option>
+                                    <option value="مسجون/ فقيد">مسجون/ فقيد</option>
+                                    <option value="اقترب تقاعده">اقترب تقاعده</option>
+                                    <option value="عادي" selected>عادي</option>
+                                </select>
+                                <div style="font-size: 0.85rem; color: #666; margin-top: 5px;">* اضغط مطولاً على الزر (Ctrl) لاختيار أكثر من عنصر أو لإلغاء التحديد.</div>
+                            </div>
+                        </div>
+
+                    </div>
+                </section>
+
+                <!-- Final Result Section -->
+                <section class="form-section final-section fade-in" style="animation-delay: 0.3s">
+                    <div class="final-score-container">
+                        <h3>النتيجة النهائية</h3>
+                        <div class="grand-total">
+                            <span id="grand-total-val">0</span> <span class="max-total">/ 45</span>
+                        </div>
+                    </div>
+                    <div class="form-actions">
+                        <button type="button" class="btn btn-secondary" onclick="document.getElementById('evaluation-form').reset(); window.resetScores();">مسح النموذج</button>
+                        <button type="button" class="btn btn-secondary" onclick="window.print()">طباعة التقييم</button>
+                        <button type="submit" class="btn btn-success">حفظ وإضافة للجدول</button>
+                    </div>
+                </section>
+
+            </form>
+        </div>
+
+        <!-- Table View -->
+        <div id="table-view" class="view-section" style="display: none;">
+            
+            <div class="table-controls fade-in">
+                <div class="search-container">
+                    <svg class="search-icon" xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
+                    <input type="text" id="search-input" placeholder="ابحث بالاسم أو الملاحظات أو الدائرة...">
+                </div>
+                <div class="filter-actions">
+                    <button type="button" class="btn btn-primary" id="adv-filter-btn">تصفية متقدمة</button>
+                    <div class="column-manager">
+                        <button type="button" class="btn btn-secondary" id="col-mgr-btn">إدارة الأعمدة</button>
+                        <div class="col-dropdown" id="col-dropdown" style="display: none;">
+                            <div class="col-dropdown-header">اختر الأعمدة للإظهار</div>
+                            <div class="col-dropdown-list" id="col-dropdown-list">
+                                <!-- JS will populate checkboxes here -->
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Top Scrollbar -->
+            <div class="top-scroll-container" id="top-scroll-container">
+                <div class="top-scroll-content" id="top-scroll-content"></div>
+            </div>
+
+            <div class="table-container fade-in" id="table-container">
+                <table id="evaluations-table" class="data-table">
+                    <thead>
+                        <tr>
+                            <th rowspan="2" class="sortable-th" data-sort="id">الرقم الوظيفي <span class="sort-icon"></span></th>
+                            <th rowspan="2" class="sortable-th" data-sort="name">الاسم <span class="sort-icon"></span></th>
+                            <th rowspan="2" class="sortable-th" data-sort="dept">الدائرة <span class="sort-icon"></span></th>
+                            <th rowspan="2" class="sortable-th" data-sort="section">القسم <span class="sort-icon"></span></th>
+                            <th rowspan="2" class="sortable-th" data-sort="gender">الجنس <span class="sort-icon"></span></th>
+                            <th rowspan="2" class="sortable-th" data-sort="dob">تاريخ الميلاد <span class="sort-icon"></span></th>
+                            <th colspan="5">معايير الأداء (15)</th>
+                            <th rowspan="2" class="sortable-th" data-sort="perfScore">المجموع <span class="sort-icon"></span></th>
+                            <th colspan="7">معايير الحاجة (30)</th>
+                            <th rowspan="2" class="sortable-th" data-sort="needScore">المجموع <span class="sort-icon"></span></th>
+                            <th rowspan="2" class="sortable-th" data-sort="commScore">قرار اللجنة (4) <span class="sort-icon"></span></th>
+                            <th rowspan="2" class="sortable-th highlight-th" data-sort="totalScore">الكلي (45) <span class="sort-icon"></span></th>
+                            <th rowspan="2" class="sortable-th" data-sort="notes">ملاحظات <span class="sort-icon"></span></th>
+                            <th rowspan="2" class="sortable-th" data-sort="notes2">ملاحظة2 <span class="sort-icon"></span></th>
+                            <th rowspan="2">إجراءات</th>
+                        </tr>
+                        <tr>
+                            <th class="sortable-th" data-sort="p1">أ1 <span class="sort-icon"></span></th>
+                            <th class="sortable-th" data-sort="p2">أ2 <span class="sort-icon"></span></th>
+                            <th class="sortable-th" data-sort="p3">أ3 <span class="sort-icon"></span></th>
+                            <th class="sortable-th" data-sort="p4">أ4 <span class="sort-icon"></span></th>
+                            <th class="sortable-th" data-sort="p5">أ5 <span class="sort-icon"></span></th>
+                            <th class="sortable-th" data-sort="n1">ح1 <span class="sort-icon"></span></th>
+                            <th class="sortable-th" data-sort="n2">ح2 <span class="sort-icon"></span></th>
+                            <th class="sortable-th" data-sort="n3">ح3 <span class="sort-icon"></span></th>
+                            <th class="sortable-th" data-sort="n4">ح4 <span class="sort-icon"></span></th>
+                            <th class="sortable-th" data-sort="n5">ح5 <span class="sort-icon"></span></th>
+                            <th class="sortable-th" data-sort="n6">ح6 <span class="sort-icon"></span></th>
+                            <th class="sortable-th" data-sort="n7">ح7 <span class="sort-icon"></span></th>
+                        </tr>
+                    </thead>
+                    <tbody id="table-body">
+                        <!-- Data will be populated here by JS -->
+                    </tbody>
+                </table>
+            </div>
+
+            <div id="record-count-container" style="margin-top: 15px; font-size: 1.1rem; font-weight: bold; color: var(--text-color); padding: 10px; background: white; border-radius: var(--radius-md); box-shadow: 0 1px 3px rgba(0,0,0,0.1); border: 1px solid var(--border-color); display: none;">
+                عدد السجلات: <span id="filtered-count">0</span>
+            </div>
+            
+            <div id="empty-state" class="empty-state">
+                <p>لا توجد بيانات محفوظة بعد. قم بإضافة التقييمات من "عرض النموذج" أو استيراد ملف إكسل.</p>
+            </div>
+        </div>
+
+        <!-- Employee Data View -->
+        <div id="emp-data-view" class="view-section" style="display: none;">
+            
+            <div style="display: flex; gap: 10px; margin-bottom: 15px; margin-top: 10px; flex-wrap: wrap;">
+                <div class="excel-import-widget">
+                    <label for="emp-excel-upload" class="upload-btn" style="background: var(--primary-color); color: white; border: 1px solid var(--primary-color); cursor: pointer; display: flex; align-items: center; gap: 5px;">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline><line x1="12" y1="18" x2="12" y2="12"></line><line x1="9" y1="15" x2="15" y2="15"></line></svg>
+                        استيراد بيانات الموظفين
+                    </label>
+                    <input type="file" id="emp-excel-upload" accept=".xlsx, .xls" class="hidden-input">
+                </div>
+
+                <button type="button" class="btn btn-outline" id="export-emp-data-btn" style="background: white; border: 1px solid var(--primary-color); color: var(--primary-color);">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="margin-left: 5px; vertical-align: middle;"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>
+                    تصدير لملف إكسل
+                </button>
+
+                <button type="button" class="btn btn-danger" id="delete-emp-data-btn">حذف بيانات الموظفين</button>
+                <button type="button" class="btn btn-primary" id="compare-emp-btn">البحث عن غير المقيمين</button>
+                <button type="button" class="btn btn-success" id="add-missing-emp-btn" style="display: none;">إدراج النواقص</button>
+                <button type="button" class="btn btn-secondary" id="show-all-emp-btn" style="display: none;">إظهار الكل</button>
+
+                <div class="filter-actions" style="margin-right: auto; display: flex; gap: 10px; flex-wrap: wrap;">
+                    <button type="button" class="btn btn-primary" id="emp-adv-filter-btn">تصفية متقدمة</button>
+                    <!-- Column manager for employee view -->
+                    <div class="column-manager">
+                        <button type="button" class="btn btn-secondary" id="emp-col-mgr-btn">إدارة الأعمدة</button>
+                        <div class="col-dropdown" id="emp-col-dropdown" style="display: none;">
+                            <div class="col-dropdown-header">اختر الأعمدة للإظهار</div>
+                            <div class="col-dropdown-list" id="emp-col-dropdown-list">
+                                <!-- JS will populate checkboxes here -->
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="table-container fade-in">
+                <table id="emp-data-table" class="data-table">
+                    <thead>
+                        <tr>
+                            <th>الرقم الوظيفي</th>
+                            <th>الاسم</th>
+                            <th>المسمى الوظيفي</th>
+                            <th>الدائرة</th>
+                            <th>القسم</th>
+                            <th>الجنس</th>
+                            <th>نوع الوظيفة</th>
+                            <th>تاريخ الميلاد</th>
+                            <th>العمر</th>
+                            <th>رقم الجوال</th>
+                            <th>البريد الالكتروني</th>
+                            <th>نوع العقد</th>
+                            <th>إجراءات</th>
+                        </tr>
+                    </thead>
+                    <tbody id="emp-data-body">
+                        <!-- Data can be loaded here -->
+                        <tr><td colspan="11" style="text-align: center; padding: 2rem;">لا توجد بيانات (يرجى الاستيراد من ملف الإكسل)</td></tr>
+                    </tbody>
+                </table>
+            </div>
+
+            <div id="emp-record-count-container" style="margin-top: 15px; font-size: 1.1rem; font-weight: bold; color: var(--text-color); padding: 10px; background: white; border-radius: var(--radius-md); box-shadow: 0 1px 3px rgba(0,0,0,0.1); border: 1px solid var(--border-color); display: block;">
+                عدد السجلات المستعرضة: <span id="emp-filtered-count">0</span>
+            </div>
+
+        </div>
+
+        <!-- Statistics View -->
+        <div id="stats-view" class="view-section" style="display: none;">
+            <div class="stats-header" style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+                <h2 style="color: var(--primary-color);">الإحصائيات والكشوفات</h2>
+                <button type="button" class="btn btn-success" id="export-stats-btn">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="margin-left:5px; vertical-align:middle;"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>
+                    ترحيل جميع الإحصائيات (إكسل)
+                </button>
+                <button type="button" class="btn btn-primary" id="export-zip-btn" style="margin-right: 10px;">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="margin-left:5px; vertical-align:middle;"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>
+                    ترحيل ملفات منفصلة (ZIP)
+                </button>
+            </div>
+            
+            <div id="stats-container" style="display: flex; flex-direction: column; gap: 30px;">
+                <div style="text-align:center; padding: 2rem; color: #666;">اضغط على التبويب لتحديث الإحصائيات...</div>
+            </div>
+        </div>
+
+    </div>
+
+    <!-- Advanced Filter Modal -->
+    <div id="adv-filter-modal" class="modal-overlay" style="display: none;">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2>تصفية متقدمة</h2>
+                <button type="button" class="close-btn" id="close-filter-btn">&times;</button>
+            </div>
+            <div class="modal-body">
+                <div style="margin-bottom: 15px; padding-bottom: 15px; border-bottom: 1px solid var(--border-color);">
+                    <label style="display: flex; align-items: center; gap: 8px; cursor: pointer; font-weight: 600; color: var(--primary-color);">
+                        <input type="checkbox" id="unevaluated-filter-chk" style="width: 18px; height: 18px;">
+                        إظهار غير المقيمين فقط (لم يتم تقييمهم بعد)
+                    </label>
+                </div>
+                <div id="filter-rules-container">
+                    <!-- Dynamic rules will be injected here -->
+                </div>
+                <button type="button" class="btn btn-outline" id="add-filter-rule-btn" style="margin-top: 1rem; width: 100%;">+ إضافة شرط تصفية</button>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-primary" id="apply-filters-btn">تطبيق التصفية</button>
+                <button type="button" class="btn btn-secondary" id="clear-filters-btn">مسح الفلاتر</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Edit Employee Modal -->
+    <div id="edit-emp-modal" class="modal-overlay" style="display: none;">
+        <div class="modal-content" style="max-width: 600px;">
+<!-- ...existing code... (leaving exact modal for edit employee undisturbed but adding advance filter for employee) -->
+        </div>
+    </div>
+
+    <!-- Advanced Filter Modal for Employee Data -->
+    <div id="emp-adv-filter-modal" class="modal-overlay" style="display: none;">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2>تصفية متقدمة لبيانات الموظفين</h2>
+                <button type="button" class="close-btn" id="close-emp-filter-btn">&times;</button>
+            </div>
+            <div class="modal-body">
+                <div id="emp-filter-rules-container">
+                    <!-- Dynamic rules will be injected here -->
+                </div>
+                <button type="button" class="btn btn-outline" id="add-emp-filter-rule-btn" style="margin-top: 1rem; width: 100%;">+ إضافة شرط تصفية</button>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-primary" id="apply-emp-filters-btn">تطبيق التصفية</button>
+                <button type="button" class="btn btn-secondary" id="clear-emp-filters-btn">مسح الفلاتر</button>
+            </div>
+        </div>
+    </div>
+
+        <!-- Report View -->
+        <div id="report-view" class="view-section" style="display: none;">
+            <div class="report-controls" style="text-align: left; margin-bottom: 1rem; padding: 10px; background: white; border-radius: 8px; box-shadow: var(--shadow-sm);">
+                <button type="button" class="btn btn-primary" id="generate-report-btn">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="margin-left: 5px; vertical-align: middle;"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>
+                    تحديث بيانات التقرير
+                </button>
+                <button type="button" class="btn btn-success" id="print-report-btn" onclick="document.body.classList.add('printing-report'); window.print(); document.body.classList.remove('printing-report');">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="margin-left: 5px; vertical-align: middle;"><polyline points="6 9 6 2 18 2 18 9"></polyline><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"></path><rect x="6" y="14" width="12" height="8"></rect></svg>
+                    طباعة / حفظ كـ PDF
+                </button>
+                <p style="margin-top: 10px; color: var(--text-muted); font-size: 0.9rem;">تلميح: اضغط على رز الطباعة ثم اختر (Save as PDF) للحصول على ملف PDF لطباعته، ويمكن تصديره لبرنامج Word عبر المحولات الاونلاين.</p>
+            </div>
+            
+            <div id="report-content">
+                <div class="report-page">
+                    <div class="report-header">
+                        <h2>التقرير الختامي لتقييم الموظفين</h2>
+                        <p id="report-date"></p>
+                    </div>
+
+                    <div class="summary-cards">
+                        <div class="summary-card">
+                            <h3>إجمالي الموظفين</h3>
+                            <div class="val" id="rep-total-emps" style="font-family: Arial;">0</div>
+                        </div>
+                        <div class="summary-card" style="background: linear-gradient(135deg, #10b981, #059669);">
+                            <h3>الموظفين المقيمين</h3>
+                            <div class="val" id="rep-eval-emps" style="font-family: Arial;">0</div>
+                        </div>
+                        <div class="summary-card" style="background: linear-gradient(135deg, #ef4444, #dc2626);">
+                            <h3>غير المقيمين</h3>
+                            <div class="val" id="rep-missing-emps" style="font-family: Arial;">0</div>
+                        </div>
+                        <div class="summary-card" style="background: linear-gradient(135deg, #f59e0b, #d97706);">
+                            <h3>متوسط التقييم الكلي</h3>
+                            <div class="val" id="rep-avg-score" style="font-family: Arial;">0</div>
+                        </div>
+                    </div>
+
+                    <div class="charts-grid">
+                        <div class="chart-wrapper">
+                            <h3>توزيع التقييم الكلي</h3>
+                            <canvas id="chartGauges1" width="300" height="300"></canvas>
+                        </div>
+                        <div class="chart-wrapper">
+                            <h3>ملخص المسميات / أنواع الوظائف</h3>
+                            <canvas id="chartJobs" width="300" height="300"></canvas>
+                        </div>
+                        <div class="chart-wrapper">
+                            <h3>توزيع الموظفين حسب الجنس</h3>
+                            <canvas id="chartGender" width="300" height="300"></canvas>
+                        </div>
+                        <div class="chart-wrapper">
+                            <h3>توزيع الموظفين حسب مكان التواجد</h3>
+                            <canvas id="chartLocation" width="300" height="300"></canvas>
+                        </div>
+                        <div class="chart-wrapper">
+                            <h3>معايير الأداء (والملاحظة عادي)</h3>
+                            <canvas id="chartPerfGroups" width="300" height="300"></canvas>
+                        </div>
+                        <div class="chart-wrapper">
+                            <h3>الاستمرارية (أ1)</h3>
+                            <canvas id="chartP1Groups" width="300" height="300"></canvas>
+                        </div>
+                        <div class="chart-wrapper">
+                            <h3>حسب معايير الحاجة (بند الحاجة 1)</h3>
+                            <canvas id="chartN1Groups" width="300" height="300"></canvas>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="report-page">
+                    <div class="report-header">
+                        <h2>تحليل الإحصائيات الفئوية والدوائر</h2>
+                    </div>
+                    <div class="charts-grid" style="grid-template-columns: 1fr;">
+                        <div class="chart-wrapper">
+                            <h3>إحصائية حسب الأعمار والفئات الجندرية</h3>
+                            <canvas id="chartAgeGroups" width="600" height="250"></canvas>
+                        </div>
+                        <div class="chart-wrapper">
+                            <h3>توزيع الموظفين على فئات (ملاحظة 2)</h3>
+                            <canvas id="chartNotes" width="600" height="250"></canvas>
+                        </div>
+                    </div>
+                    <div class="charts-grid" style="grid-template-columns: 1fr;">
+                        <div class="chart-wrapper">
+                            <h3>متوسط التقييم الكلي للموظفين حسب الدائرة</h3>
+                            <canvas id="chartDepts" width="600" height="250"></canvas>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Settings & Backup Modal -->
+        <div id="settings-modal" class="modal-overlay" style="display: none;">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h2>الإعدادات والنسخ الاحتياطي</h2>
+                    <button class="close-btn" id="close-settings">&times;</button>
+                </div>
+                <div class="modal-body" style="padding: 2rem;">
+                    <div style="display: flex; gap: 1rem; justify-content: center; flex-wrap: wrap;">
+                        <button type="button" class="btn" id="export-backup-btn" style="background-color: var(--primary-color); color: white; padding: 0.8rem 1.5rem; border-radius: var(--radius-md); border: none; cursor: pointer; display: flex; align-items: center; gap: 0.5rem; font-family: inherit; font-size: 1rem; font-weight: bold;">
+                            <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>
+                            تصدير نسخة احتياطية
+                        </button>
+                        
+                        <div class="excel-import-widget">
+                            <label for="import-backup-upload" class="upload-btn" style="background-color: var(--success-color); color: white; padding: 0.8rem 1.5rem; border-radius: var(--radius-md); cursor: pointer; display: flex; align-items: center; gap: 0.5rem; font-family: inherit; font-size: 1rem; font-weight: bold; margin: 0;">
+                                <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline><line x1="12" y1="18" x2="12" y2="12"></line><line x1="9" y1="15" x2="15" y2="15"></line></svg>
+                                استيراد نسخة احتياطية
+                            </label>
+                            <input type="file" id="import-backup-upload" accept=".json" class="hidden-input">
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+    <!-- ChartJS Plugin for Data Labels -->
+    <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels@2.2.0"></script>
+    <script src="script.js"></script>
+</body>
+</html>
