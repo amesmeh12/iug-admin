@@ -8,6 +8,8 @@
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="styles.css">
+    <!-- Supabase JS Library -->
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js"></script>
     <!-- SheetJS for Excel Import/Export with Styling support -->
     <script src="https://cdn.jsdelivr.net/npm/xlsx-js-style@1.2.0/dist/xlsx.bundle.js"></script>
     <!-- JSZip for creating ZIP files -->
@@ -670,5 +672,57 @@
     <!-- ChartJS Plugin for Data Labels -->
     <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels@2.2.0"></script>
     <script src="script.js"></script>
+        <script>
+        // إعداد الاتصال مع Supabase
+        const supabaseUrl = 'https://qhpfspnaznxfjnotsmay.supabase.co';
+        const supabaseKey = 'ضع_مفتاح_anon_key_هنا'; // استبدل هذا بمفتاح anon key من إعدادات Supabase
+        const supabase = supabase.createClient(supabaseUrl, 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InFocGZzcG5hem54Zmpub3RzbWF5Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzk0MTgwOTcsImV4cCI6MjA5NDk5NDA5N30.D8LR5I_JEkPRtLCeQ38s5sQOiODohuXBGtAWkCMOrSg');
+
+        // التقاط حدث حفظ النموذج وإرسال البيانات إلى Supabase
+        document.addEventListener('DOMContentLoaded', function() {
+            const form = document.getElementById('evaluation-form');
+            if (form) {
+                form.addEventListener('submit', async function(e) {
+                    e.preventDefault();
+                    // جمع البيانات من النموذج
+                    const data = {
+                        emp_id: form['emp-id'].value,
+                        emp_name: form['emp-name'].value,
+                        emp_title: form['emp-title'].value,
+                        emp_dept: form['emp-dept'].value,
+                        emp_section: form['emp-section'].value,
+                        emp_gender: form['emp-gender'].value,
+                        emp_dob: form['emp-dob'].value,
+                        p1: Number(form['p1']?.value || 0),
+                        p2: Number(form['p2']?.value || 0),
+                        p3: Number(form['p3']?.value || 0),
+                        p4: Number(form['p4']?.value || 0),
+                        p5: Number(form['p5']?.value || 0),
+                        n1: Number(form['n1']?.value || 0),
+                        n2: Number(form['n2']?.value || 0),
+                        n3: Number(form['n3']?.value || 0),
+                        n4: Number(form['n4']?.value || 0),
+                        n4_count: Number(form['n4_count']?.value || 0),
+                        n5: Number(form['n5']?.value || 0),
+                        n6: Number(form['n6']?.value || 0),
+                        n7: Number(form['n7']?.value || 0),
+                        c1: Number(form['c1']?.value || 0),
+                        emp_notes: form['emp-notes']?.value || '',
+                        emp_notes2: Array.from(form['emp-notes2']?.selectedOptions || []).map(opt => opt.value).join(','),
+                        // يمكن إضافة الحقول الحسابية إذا كانت موجودة في الموقع
+                    };
+
+                    // إرسال البيانات إلى جدول evaluations
+                    const { error } = await supabase.from('evaluations').insert([data]);
+                    if (error) {
+                        alert('حدث خطأ أثناء حفظ البيانات: ' + error.message);
+                    } else {
+                        alert('تم حفظ التقييم في قاعدة البيانات بنجاح!');
+                        form.reset();
+                    }
+                });
+            }
+        });
+        </script>
 </body>
 </html>
