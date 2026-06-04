@@ -4,12 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>استبانة تقييم الموظفين</title>
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="styles.css">
-    <!-- Supabase JS Library -->
-    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js"></script>
     <!-- SheetJS for Excel Import/Export with Styling support -->
     <script src="https://cdn.jsdelivr.net/npm/xlsx-js-style@1.2.0/dist/xlsx.bundle.js"></script>
     <!-- JSZip for creating ZIP files -->
@@ -407,35 +402,27 @@
         <!-- Employee Data View -->
         <div id="emp-data-view" class="view-section" style="display: none;">
             
-            <div style="display: flex; gap: 10px; margin-bottom: 15px; margin-top: 10px; flex-wrap: wrap;">
-                <div class="excel-import-widget">
-                    <label for="emp-excel-upload" class="upload-btn" style="background: var(--primary-color); color: white; border: 1px solid var(--primary-color); cursor: pointer; display: flex; align-items: center; gap: 5px;">
-                        <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline><line x1="12" y1="18" x2="12" y2="12"></line><line x1="9" y1="15" x2="15" y2="15"></line></svg>
-                        استيراد بيانات الموظفين
-                    </label>
-                    <input type="file" id="emp-excel-upload" accept=".xlsx, .xls" class="hidden-input">
+            <div class="toolbar emp-toolbar">
+                <div class="toolbar-group">
+                    <div class="excel-import-widget">
+                        <label for="emp-excel-upload" class="btn btn-primary upload-btn-inline">
+                            استيراد بيانات الموظفين
+                        </label>
+                        <input type="file" id="emp-excel-upload" accept=".xlsx, .xls" class="hidden-input">
+                    </div>
+                    <button type="button" class="btn btn-outline-dark" id="export-emp-data-btn">تصدير لملف إكسل</button>
+                    <button type="button" class="btn btn-danger btn-sm" id="delete-emp-data-btn">حذف بيانات الموظفين</button>
+                    <button type="button" class="btn btn-primary btn-sm" id="compare-emp-btn">البحث عن غير المقيمين</button>
+                    <button type="button" class="btn btn-success btn-sm" id="add-missing-emp-btn" style="display: none;">إدراج النواقص</button>
+                    <button type="button" class="btn btn-secondary btn-sm" id="show-all-emp-btn" style="display: none;">إظهار الكل</button>
                 </div>
-
-                <button type="button" class="btn btn-outline" id="export-emp-data-btn" style="background: white; border: 1px solid var(--primary-color); color: var(--primary-color);">
-                    <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="margin-left: 5px; vertical-align: middle;"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>
-                    تصدير لملف إكسل
-                </button>
-
-                <button type="button" class="btn btn-danger" id="delete-emp-data-btn">حذف بيانات الموظفين</button>
-                <button type="button" class="btn btn-primary" id="compare-emp-btn">البحث عن غير المقيمين</button>
-                <button type="button" class="btn btn-success" id="add-missing-emp-btn" style="display: none;">إدراج النواقص</button>
-                <button type="button" class="btn btn-secondary" id="show-all-emp-btn" style="display: none;">إظهار الكل</button>
-
-                <div class="filter-actions" style="margin-right: auto; display: flex; gap: 10px; flex-wrap: wrap;">
-                    <button type="button" class="btn btn-primary" id="emp-adv-filter-btn">تصفية متقدمة</button>
-                    <!-- Column manager for employee view -->
+                <div class="toolbar-group">
+                    <button type="button" class="btn btn-primary btn-sm" id="emp-adv-filter-btn">تصفية متقدمة</button>
                     <div class="column-manager">
-                        <button type="button" class="btn btn-secondary" id="emp-col-mgr-btn">إدارة الأعمدة</button>
+                        <button type="button" class="btn btn-secondary btn-sm" id="emp-col-mgr-btn">إدارة الأعمدة</button>
                         <div class="col-dropdown" id="emp-col-dropdown" style="display: none;">
                             <div class="col-dropdown-header">اختر الأعمدة للإظهار</div>
-                            <div class="col-dropdown-list" id="emp-col-dropdown-list">
-                                <!-- JS will populate checkboxes here -->
-                            </div>
+                            <div class="col-dropdown-list" id="emp-col-dropdown-list"></div>
                         </div>
                     </div>
                 </div>
@@ -467,7 +454,7 @@
                 </table>
             </div>
 
-            <div id="emp-record-count-container" style="margin-top: 15px; font-size: 1.1rem; font-weight: bold; color: var(--text-color); padding: 10px; background: white; border-radius: var(--radius-md); box-shadow: 0 1px 3px rgba(0,0,0,0.1); border: 1px solid var(--border-color); display: block;">
+            <div id="emp-record-count-container" class="record-count-box">
                 عدد السجلات المستعرضة: <span id="emp-filtered-count">0</span>
             </div>
 
@@ -523,7 +510,18 @@
     <!-- Edit Employee Modal -->
     <div id="edit-emp-modal" class="modal-overlay" style="display: none;">
         <div class="modal-content" style="max-width: 600px;">
-<!-- ...existing code... (leaving exact modal for edit employee undisturbed but adding advance filter for employee) -->
+            <div class="modal-header">
+                <h2>تعديل بيانات الموظف</h2>
+                <button type="button" class="close-btn" id="close-edit-emp-btn">&times;</button>
+            </div>
+            <div class="modal-body">
+                <input type="hidden" id="edit-emp-index">
+                <div id="edit-emp-fields"></div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary btn-sm" id="cancel-emp-edit-btn">إلغاء</button>
+                <button type="button" class="btn btn-primary btn-sm" id="save-emp-data-btn">حفظ</button>
+            </div>
         </div>
     </div>
 
@@ -672,57 +670,5 @@
     <!-- ChartJS Plugin for Data Labels -->
     <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels@2.2.0"></script>
     <script src="script.js"></script>
-        <script>
-        // إعداد الاتصال مع Supabase
-        const supabaseUrl = 'https://qhpfspnaznxfjnotsmay.supabase.co';
-        const supabaseKey = 'ضع_مفتاح_anon_key_هنا'; // استبدل هذا بمفتاح anon key من إعدادات Supabase
-        const supabase = supabase.createClient(supabaseUrl, 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InFocGZzcG5hem54Zmpub3RzbWF5Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzk0MTgwOTcsImV4cCI6MjA5NDk5NDA5N30.D8LR5I_JEkPRtLCeQ38s5sQOiODohuXBGtAWkCMOrSg');
-
-        // التقاط حدث حفظ النموذج وإرسال البيانات إلى Supabase
-        document.addEventListener('DOMContentLoaded', function() {
-            const form = document.getElementById('evaluation-form');
-            if (form) {
-                form.addEventListener('submit', async function(e) {
-                    e.preventDefault();
-                    // جمع البيانات من النموذج
-                    const data = {
-                        emp_id: form['emp-id'].value,
-                        emp_name: form['emp-name'].value,
-                        emp_title: form['emp-title'].value,
-                        emp_dept: form['emp-dept'].value,
-                        emp_section: form['emp-section'].value,
-                        emp_gender: form['emp-gender'].value,
-                        emp_dob: form['emp-dob'].value,
-                        p1: Number(form['p1']?.value || 0),
-                        p2: Number(form['p2']?.value || 0),
-                        p3: Number(form['p3']?.value || 0),
-                        p4: Number(form['p4']?.value || 0),
-                        p5: Number(form['p5']?.value || 0),
-                        n1: Number(form['n1']?.value || 0),
-                        n2: Number(form['n2']?.value || 0),
-                        n3: Number(form['n3']?.value || 0),
-                        n4: Number(form['n4']?.value || 0),
-                        n4_count: Number(form['n4_count']?.value || 0),
-                        n5: Number(form['n5']?.value || 0),
-                        n6: Number(form['n6']?.value || 0),
-                        n7: Number(form['n7']?.value || 0),
-                        c1: Number(form['c1']?.value || 0),
-                        emp_notes: form['emp-notes']?.value || '',
-                        emp_notes2: Array.from(form['emp-notes2']?.selectedOptions || []).map(opt => opt.value).join(','),
-                        // يمكن إضافة الحقول الحسابية إذا كانت موجودة في الموقع
-                    };
-
-                    // إرسال البيانات إلى جدول evaluations
-                    const { error } = await supabase.from('evaluations').insert([data]);
-                    if (error) {
-                        alert('حدث خطأ أثناء حفظ البيانات: ' + error.message);
-                    } else {
-                        alert('تم حفظ التقييم في قاعدة البيانات بنجاح!');
-                        form.reset();
-                    }
-                });
-            }
-        });
-        </script>
 </body>
 </html>

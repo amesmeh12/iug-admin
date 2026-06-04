@@ -20,6 +20,43 @@ document.addEventListener('DOMContentLoaded', () => {
     let evaluations = JSON.parse(localStorage.getItem('evaluations')) || [];
     let currentFilteredData = [];
 
+    // توحيد الرقم الوظيفي للمقارنة (أرقام عربية/فارسية، Excel، مسافات)
+    function normalizeEmpId(id) {
+        if (id === null || id === undefined || id === '') return '';
+        let str = String(id).trim();
+        str = str.replace(/[٠-٩]/g, d => '٠١٢٣٤٥٦٧٨٩'.indexOf(d));
+        str = str.replace(/[۰-۹]/g, d => '۰۱۲۳۴۵۶۷۸۹'.indexOf(d));
+        if (/^\d+\.0+$/.test(str)) str = str.replace(/\.0+$/, '');
+        return str;
+    }
+
+    function findEvalByEmpId(empId) {
+        const norm = normalizeEmpId(empId);
+        if (!norm) return -1;
+        return evaluations.findIndex(ev => normalizeEmpId(ev.id) === norm);
+    }
+
+    function findEmployeeByEmpId(empId) {
+        const norm = normalizeEmpId(empId);
+        if (!norm) return null;
+        return employeeData.find(e => normalizeEmpId(e['الرقم الوظيفي']) === norm) || null;
+    }
+
+    function refreshMissingEmpsView() {
+        const compare = document.getElementById('compare-emp-btn');
+        const addMissing = document.getElementById('add-missing-emp-btn');
+        if (!compare || compare.style.display !== 'none') return;
+        const evalIds = evaluations.map(e => normalizeEmpId(e.id)).filter(Boolean);
+        currentMissingEmps = employeeData.filter(emp => {
+            const empId = normalizeEmpId(emp['الرقم الوظيفي']);
+            return empId && !evalIds.includes(empId);
+        });
+        renderEmpTable(currentMissingEmps);
+        if (addMissing) {
+            addMissing.style.display = currentMissingEmps.length > 0 ? 'inline-block' : 'none';
+        }
+    }
+
     // Migrate and recalculate old data to ensure consistency with new schema (c1 separated from needScore)
     evaluations = evaluations.map(ev => {
         if (ev.c1 === undefined && ev.n8 !== undefined) {
@@ -29,6 +66,9 @@ document.addEventListener('DOMContentLoaded', () => {
         ev.needScore = (parseFloat(ev.n1)||0) + (parseFloat(ev.n2)||0) + (parseFloat(ev.n3)||0) + (parseFloat(ev.n4)||0) + (parseFloat(ev.n5)||0) + (parseFloat(ev.n6)||0) + (parseFloat(ev.n7)||0);
         ev.commScore = parseFloat(ev.c1) || 0;
         ev.totalScore = ev.perfScore + ev.needScore;
+        if (ev.id !== undefined && ev.id !== null && ev.id !== '') {
+            ev.id = normalizeEmpId(ev.id);
+        }
         
         return ev;
     });
@@ -550,8 +590,8 @@ document.addEventListener('DOMContentLoaded', () => {
                 });
 
                 if (addFullEval) {
-                    const empId = String(item['الرقم الوظيفي'] || item.id || '').trim();
-                    const ev = evaluations.find(x => String(x.id).trim() === empId);
+                    const empId = normalizeEmpId(item['الرقم الوظيفي'] || item.id || '');
+                    const ev = evaluations.find(x => normalizeEmpId(x.id) === empId);
                     if (ev) {
                         row.push(
                             ev.p1 ?? '', ev.p2 ?? '', ev.p3 ?? '', ev.p4 ?? '', ev.p5 ?? '', ev.perfScore ?? '',
@@ -613,8 +653,8 @@ document.addEventListener('DOMContentLoaded', () => {
 
         // Sheet: موظفي الداخل (الكل باستثناء في الخارج)
         appendDetailedSheet("موظفي الداخل", employeeData.filter(emp => {
-            const empId = String(emp['الرقم الوظيفي'] || emp.id || '').trim();
-            const ev = evaluations.find(x => String(x.id).trim() === empId);
+            const empId = normalizeEmpId(emp['الرقم الوظيفي'] || emp.id || '');
+            const ev = evaluations.find(x => normalizeEmpId(x.id) === empId);
             return !(ev && (ev.notes2 || '').includes('في الخارج'));
         }), ['المسمى الوظيفي', 'نوع الوظيفة'], [e => e['المسمى الوظيفي'], e => e['نوع الوظيفة']], true);
 
@@ -809,7 +849,8 @@ document.addEventListener('DOMContentLoaded', () => {
         e.preventDefault();
         
         // Get Basic Info
-        const empId = document.getElementById('emp-id').value;
+        const empIdRaw = document.getElementById('emp-id').value;
+        const empId = normalizeEmpId(empIdRaw) || empIdRaw.trim();
         const empName = document.getElementById('emp-name').value;
         const empTitle = document.getElementById('emp-title').value;
         const empDept = document.getElementById('emp-dept').value;
@@ -847,7 +888,7 @@ document.addEventListener('DOMContentLoaded', () => {
         };
 
         // Check if exists, replace or add
-        const existingIndex = evaluations.findIndex(ev => ev.id.trim() === empId.trim());
+        const existingIndex = findEvalByEmpId(empId);
         if(existingIndex >= 0) {
             evaluations[existingIndex] = newEval;
             alert('تم تحديث بيانات الموظف بنجاح!');
@@ -858,6 +899,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
         saveToLocal();
         updateSavedCount();
+        refreshMissingEmpsView();
         form.reset();
         localStorage.removeItem('unsavedFormState');
         calculateScores();
@@ -1268,7 +1310,7 @@ document.addEventListener('DOMContentLoaded', () => {
         // Sync data from employeeData
         if (employeeData && employeeData.length > 0) {
             evaluations.forEach(ev => {
-                const emp = employeeData.find(e => String(e['الرقم الوظيفي']).trim() === String(ev.id).trim());
+                const emp = findEmployeeByEmpId(ev.id);
                 if (emp) {
                     if (!ev.dob && emp['تاريخ الميلاد']) ev.dob = emp['تاريخ الميلاد'];
                     if (!ev.gender && emp['الجنس']) ev.gender = emp['الجنس'];
@@ -1390,7 +1432,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
         filteredEvals.forEach((ev) => {
             // Find original index for edit/delete functions
-            const originalIndex = evaluations.findIndex(e => String(e.id).trim() === String(ev.id).trim());
+            const originalIndex = findEvalByEmpId(ev.id);
             
             const tr = document.createElement('tr');
             
@@ -1755,7 +1797,7 @@ document.addEventListener('DOMContentLoaded', () => {
                         
                         // Parse values based on template order:
                         // 0:ID, 1:Name, 2:Title, 3:Dept, 4:Section, 5:DOB, 6-10:Perf, 11-18:Need
-                        const empId = String(row[0] || `EMP-${Date.now()}-${i}`);
+                        const empId = normalizeEmpId(String(row[0] || '')) || String(row[0] || `EMP-${Date.now()}-${i}`).trim();
                         
                         let n1 = String(row[actualNotesIndex] || '');
                         let n2 = String(row[actualNotes2Index] || '');
@@ -1795,7 +1837,7 @@ document.addEventListener('DOMContentLoaded', () => {
                         newEval.commScore = newEval.c1;
                         newEval.totalScore = newEval.perfScore + newEval.needScore;
                         
-                        const existingIndex = evaluations.findIndex(ev => String(ev.id).trim() === empId.trim());
+                        const existingIndex = findEvalByEmpId(empId);
                         if(existingIndex >= 0) {
                             evaluations[existingIndex] = newEval;
                         } else {
@@ -1827,6 +1869,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // --- Employee Data Logic --- //
     let employeeData = [];
+    let currentMissingEmps = [];
     
     // Default columns for employee data
     const defaultEmpCols = [
@@ -1872,12 +1915,15 @@ document.addEventListener('DOMContentLoaded', () => {
         const storedEmpData = localStorage.getItem('employeeData');
         if (storedEmpData) {
             employeeData = JSON.parse(storedEmpData);
-            // compute age immediately
             employeeData.forEach(emp => {
+                if (emp['الرقم الوظيفي']) {
+                    emp['الرقم الوظيفي'] = normalizeEmpId(emp['الرقم الوظيفي']);
+                }
                 if (emp['تاريخ الميلاد'] && !emp['العمر']) {
                     emp['العمر'] = Math.abs(new Date(Date.now() - new Date(emp['تاريخ الميلاد']).getTime()).getUTCFullYear() - 1970) || '';
                 }
             });
+            localStorage.setItem('employeeData', JSON.stringify(employeeData));
             renderEmpTable();
         }
     } catch(e) {}
@@ -2088,7 +2134,10 @@ document.addEventListener('DOMContentLoaded', () => {
                 tr.appendChild(td);
             });
             const actionTd = document.createElement('td');
-            actionTd.innerHTML = `<button class="action-btn edit-row-btn" onclick="editEmpRow(${ind})">تعديل</button>`;
+            actionTd.innerHTML = `
+                <button class="action-btn rate-row-btn" onclick="rateEmpFromData(${ind})">تقييم</button>
+                <button class="action-btn edit-row-btn" onclick="editEmpRow(${ind})">تعديل</button>
+            `;
             tr.appendChild(actionTd);
             tbody.appendChild(tr);
         });
@@ -2109,6 +2158,32 @@ document.addEventListener('DOMContentLoaded', () => {
 
     if(closeEditEmpBtn) closeEditEmpBtn.addEventListener('click', closeEmpModal);
     if(cancelEmpEditBtn) cancelEmpEditBtn.addEventListener('click', closeEmpModal);
+
+    window.rateEmpFromData = function(index) {
+        if (!employeeData[index]) return;
+        const emp = employeeData[index];
+        const evalIdx = findEvalByEmpId(emp['الرقم الوظيفي']);
+        if (evalIdx >= 0) {
+            window.editRow(evalIdx);
+            return;
+        }
+        document.querySelector('.tab-btn[data-target="form-view"]').click();
+        document.getElementById('emp-id').value = normalizeEmpId(emp['الرقم الوظيفي']) || emp['الرقم الوظيفي'] || '';
+        document.getElementById('emp-name').value = emp['الاسم'] || '';
+        document.getElementById('emp-title').value = emp['المسمى الوظيفي'] || '';
+        document.getElementById('emp-dept').value = emp['الدائرة'] || '';
+        document.getElementById('emp-section').value = emp['القسم'] || '';
+        if (document.getElementById('emp-gender')) {
+            document.getElementById('emp-gender').value = emp['الجنس'] || 'ذكر';
+        }
+        document.getElementById('emp-dob').value = emp['تاريخ الميلاد'] || '';
+        document.getElementById('emp-notes').value = '';
+        const notes2Select = document.getElementById('emp-notes2');
+        Array.from(notes2Select.options).forEach(opt => { opt.selected = opt.value === 'عادي'; });
+        form.querySelectorAll('input[type="radio"]').forEach(r => { r.checked = false; });
+        calculateScores();
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+    };
 
     window.editEmpRow = function(index) {
         if (!employeeData[index]) return;
@@ -2176,23 +2251,11 @@ document.addEventListener('DOMContentLoaded', () => {
     const showAllBtn = document.getElementById('show-all-emp-btn');
     const addMissingBtn = document.getElementById('add-missing-emp-btn');
 
-    let currentMissingEmps = [];
-
-    // Helper to convert Arabic digits to English digits
-    function toEnglishDigits(str) {
-        if (!str) return '';
-        const arabicNumbers = ['٠', '١', '٢', '٣', '٤', '٥', '٦', '٧', '٨', '٩'];
-        return String(str).replace(/[٠-٩]/g, function(w) {
-            return arabicNumbers.indexOf(w);
-        }).trim();
-    }
-
     if(compareBtn) {
         compareBtn.addEventListener('click', () => {
-            const evalIds = evaluations.map(e => toEnglishDigits(e.id));
+            const evalIds = evaluations.map(e => normalizeEmpId(e.id)).filter(Boolean);
             currentMissingEmps = employeeData.filter(emp => {
-                const empId = toEnglishDigits(emp['الرقم الوظيفي']);
-                // Check if employee ID exists and is NOT found in evaluations
+                const empId = normalizeEmpId(emp['الرقم الوظيفي']);
                 return empId && !evalIds.includes(empId);
             });
             
@@ -2215,7 +2278,7 @@ document.addEventListener('DOMContentLoaded', () => {
             let addedCount = 0;
             currentMissingEmps.forEach(emp => {
                 const newEval = {
-                    id: String(emp['الرقم الوظيفي']).trim(),
+                    id: normalizeEmpId(emp['الرقم الوظيفي']) || String(emp['الرقم الوظيفي']).trim(),
                     name: String(emp['الاسم'] || 'غير محدد'),
                     title: String(emp['المسمى الوظيفي'] || ''),
                     dept: String(emp['الدائرة'] || ''),
@@ -2273,7 +2336,12 @@ document.addEventListener('DOMContentLoaded', () => {
                 const jsonData = XLSX.utils.sheet_to_json(worksheet);
                 
                 if (jsonData && jsonData.length > 0) {
-                    employeeData = jsonData;
+                    employeeData = jsonData.map(emp => {
+                        if (emp['الرقم الوظيفي'] !== undefined && emp['الرقم الوظيفي'] !== null && emp['الرقم الوظيفي'] !== '') {
+                            emp['الرقم الوظيفي'] = normalizeEmpId(emp['الرقم الوظيفي']);
+                        }
+                        return emp;
+                    });
                     localStorage.setItem('employeeData', JSON.stringify(employeeData));
                     renderEmpTable();
                     alert(`تم استيراد ${employeeData.length} سجل بنجاح!`);
