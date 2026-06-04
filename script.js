@@ -42,6 +42,64 @@ document.addEventListener('DOMContentLoaded', () => {
         return employeeData.find(e => normalizeEmpId(e['الرقم الوظيفي']) === norm) || null;
     }
 
+    // --- منطق ملاحظة 2 ---
+    // في الخارج + (أكاديمي/حالة خاصة/مسجون/اقترب تقاعده) → يُصنَّف ضمن الحالة الخاصة
+    // في الخارج فقط → يُصنَّف «عادي»، مع إبقاء إمكانية استخراج «في الخارج» في التقرير
+    const NOTES2_SPECIAL = ['أكاديمي', 'حالة خاصة', 'مسجون/ فقيد', 'اقترب تقاعده'];
+    const NOTES2_ABROAD = 'في الخارج';
+    const NOTES2_NORMAL = 'عادي';
+    const NOTES2_ALL_TAGS = [NOTES2_ABROAD, ...NOTES2_SPECIAL, NOTES2_NORMAL];
+
+    function parseNotes2Tags(notes2) {
+        const raw = String(notes2 || NOTES2_NORMAL);
+        const tags = [];
+        NOTES2_ALL_TAGS.forEach(cat => {
+            if (raw.includes(cat)) tags.push(cat);
+        });
+        if (tags.length === 0) tags.push(NOTES2_NORMAL);
+        return tags;
+    }
+
+    function isNotes2Abroad(notes2) {
+        const raw = String(notes2 || '').toLowerCase();
+        return raw.includes('في الخارج') || raw.includes('بالخارج');
+    }
+
+    function hasNotes2SpecialCategory(notes2) {
+        const tags = parseNotes2Tags(notes2);
+        return NOTES2_SPECIAL.some(cat => tags.includes(cat));
+    }
+
+    function getEffectiveNotes2Categories(notes2) {
+        const tags = parseNotes2Tags(notes2);
+        const special = tags.filter(t => NOTES2_SPECIAL.includes(t));
+        if (special.length > 0) return special;
+        if (isNotes2Abroad(notes2)) return [NOTES2_NORMAL];
+        if (tags.includes(NOTES2_NORMAL)) return [NOTES2_NORMAL];
+        return [NOTES2_NORMAL];
+    }
+
+    function isEffectivelyNormalNotes2(notes2) {
+        const effective = getEffectiveNotes2Categories(notes2);
+        return effective.length === 1 && effective[0] === NOTES2_NORMAL;
+    }
+
+    function matchesNotes2Category(notes2, category) {
+        if (category === NOTES2_ABROAD) return isNotes2Abroad(notes2);
+        return getEffectiveNotes2Categories(notes2).includes(category);
+    }
+
+    function countNotes2Distribution(evals) {
+        const counts = {};
+        [...NOTES2_SPECIAL, NOTES2_NORMAL].forEach(c => { counts[c] = 0; });
+        evals.forEach(ev => {
+            getEffectiveNotes2Categories(ev.notes2).forEach(cat => {
+                counts[cat] = (counts[cat] || 0) + 1;
+            });
+        });
+        return counts;
+    }
+
     function refreshMissingEmpsView() {
         const compare = document.getElementById('compare-emp-btn');
         const addMissing = document.getElementById('add-missing-emp-btn');
@@ -233,9 +291,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const totalEmployees = employeeData.length;
         let outsideCountUI = 0;
         evaluations.forEach(ev => {
-            if ((ev.notes2 || '').includes('في الخارج')) {
-                outsideCountUI++;
-            }
+            if (isNotes2Abroad(ev.notes2)) outsideCountUI++;
         });
         const insideCountUI = totalEmployees - outsideCountUI;
         let locationRows = [
@@ -245,20 +301,15 @@ document.addEventListener('DOMContentLoaded', () => {
         ];
         htmlContent += createStatsTable('إحصائية حسب مكان التواجد', ['مكان التواجد', 'العدد', 'النسبة'], locationRows);
 
-        // 4. Stats by Note 2 Items
-        const note2Categories = ['في الخارج', 'أكاديمي', 'حالة خاصة', 'مسجون/ فقيد', 'اقترب تقاعده', 'عادي'];
-        let note2Counts = {};
-        note2Categories.forEach(c => note2Counts[c] = 0);
-        
-        evaluations.forEach(ev => {
-            const n2 = ev.notes2 || 'عادي';
-            note2Categories.forEach(cat => {
-                if (n2.includes(cat)) note2Counts[cat]++;
-            });
-        });
+        // 4. Stats by Note 2 Items        const note2Counts = countNotes2Distribution(evaluations);
+        const note2Categories = [...NOTES2_SPECIAL, NOTES2_NORMAL];
         
         let note2TotalUI = 0;
-        let note2Rows = Object.entries(note2Counts).map(([cat, count]) => { note2TotalUI += count; return [cat, count, calcPercent(count, evaluations.length)]; });
+        let note2Rows = note2Categories.map(cat => {
+            const count = note2Counts[cat] || 0;
+            note2TotalUI += count;
+            return [cat, count, calcPercent(count, evaluations.length)];
+        });
         note2Rows.push(['الإجمالي', note2TotalUI, ""]);
         htmlContent += createStatsTable('إحصائية حسب ملاحظة 2 (من المقيمين)', ['البند', 'العدد', 'النسبة'], note2Rows);
 
@@ -376,7 +427,7 @@ document.addEventListener('DOMContentLoaded', () => {
         };
         
         evaluations.forEach(ev => {
-            if ((ev.notes2 || '').includes('عادي')) {
+            if (isEffectivelyNormalNotes2(ev.notes2)) {
                 const s = ev.perfScore || 0;
                 for (const key in perfGroups) {
                     if (s >= perfGroups[key].min && s <= perfGroups[key].max) {
@@ -496,9 +547,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const totalEmployeesExport = employeeData.length;
         let outsideCountExport = 0;
         evaluations.forEach(ev => {
-            if ((ev.notes2 || '').includes('في الخارج')) {
-                outsideCountExport++;
-            }
+            if (isNotes2Abroad(ev.notes2)) outsideCountExport++;
         });
         const insideCountExport = totalEmployeesExport - outsideCountExport;
         
@@ -510,22 +559,18 @@ document.addEventListener('DOMContentLoaded', () => {
         statsRows.push([]);
 
         // 4. Stats by Note 2 Items
-        const note2CategoriesExport = ['في الخارج', 'أكاديمي', 'حالة خاصة', 'مسجون/ فقيد', 'اقترب تقاعده', 'عادي'];
-        let note2CountsExport = {};
-        note2CategoriesExport.forEach(c => note2CountsExport[c] = 0);
-        
-        evaluations.forEach(ev => {
-            const n2 = ev.notes2 || 'عادي';
-            note2CategoriesExport.forEach(cat => {
-                if (n2.includes(cat)) note2CountsExport[cat]++;
-            });
-        });
+        // 4. Stats by Note 2 Items (التصنيف الفعّال)
+        const note2CountsExport = countNotes2Distribution(evaluations);
+        const note2CategoriesExport = [...NOTES2_SPECIAL, NOTES2_NORMAL];
         
         let note2TotalExport = 0;
         statsRows.push(["إحصائية حسب ملاحظة 2"]);
         statsRows.push(["البند", "العدد", "النسبة"]);
-        Object.values(note2CountsExport).forEach(c => note2TotalExport += c);
-        Object.entries(note2CountsExport).forEach(([cat, count]) => { statsRows.push([cat, count, calcPercentExp(count, totalEvals)]); });
+        note2CategoriesExport.forEach(cat => {
+            const count = note2CountsExport[cat] || 0;
+            note2TotalExport += count;
+            statsRows.push([cat, count, calcPercentExp(count, totalEvals)]);
+        });
         statsRows.push(["الإجمالي", note2TotalExport, ""]);
         statsRows.push([]);
 
@@ -537,7 +582,7 @@ document.addEventListener('DOMContentLoaded', () => {
         };
         
         evaluations.forEach(ev => {
-            if ((ev.notes2 || '').includes('عادي')) {
+            if (isEffectivelyNormalNotes2(ev.notes2)) {
                 const s = ev.perfScore || 0;
                 for (const key in perfGroupsExport) {
                     if (s >= perfGroupsExport[key].min && s <= perfGroupsExport[key].max) {
@@ -655,7 +700,14 @@ document.addEventListener('DOMContentLoaded', () => {
         appendDetailedSheet("موظفي الداخل", employeeData.filter(emp => {
             const empId = normalizeEmpId(emp['الرقم الوظيفي'] || emp.id || '');
             const ev = evaluations.find(x => normalizeEmpId(x.id) === empId);
-            return !(ev && (ev.notes2 || '').includes('في الخارج'));
+            return !(ev && isNotes2Abroad(ev.notes2));
+        }), ['المسمى الوظيفي', 'نوع الوظيفة'], [e => e['المسمى الوظيفي'], e => e['نوع الوظيفة']], true);
+
+        // Sheet: موظفي في الخارج (استخراج منفصل)
+        appendDetailedSheet("موظفي في الخارج", employeeData.filter(emp => {
+            const empId = normalizeEmpId(emp['الرقم الوظيفي'] || emp.id || '');
+            const ev = evaluations.find(x => normalizeEmpId(x.id) === empId);
+            return ev && isNotes2Abroad(ev.notes2);
         }), ['المسمى الوظيفي', 'نوع الوظيفة'], [e => e['المسمى الوظيفي'], e => e['نوع الوظيفة']], true);
 
         // Sheet: خدمات
@@ -671,7 +723,7 @@ document.addEventListener('DOMContentLoaded', () => {
         }), [], [], true);
 
         // Sheet: معيار الحاجة بند 1 = 0 وملاحظة عادي (10)
-        appendDetailedSheet("حاجة1صفر_عادي (10)", evaluations.filter(ev => parseInt(ev.n1) === 0 && (ev.notes2 || '').includes('عادي')), ['حاجة بند 1', 'ملاحظة 2'], [e => e.n1, e => e.notes2]);
+        appendDetailedSheet("حاجة1صفر_عادي (10)", evaluations.filter(ev => parseInt(ev.n1) === 0 && isEffectivelyNormalNotes2(ev.notes2)), ['حاجة بند 1', 'ملاحظة 2'], [e => e.n1, e => e.notes2]);
 
         // Sheet: معيار الحاجة بند 1 > 3 (11)
         appendDetailedSheet("حاجة1 أكبرمن3 (11)", evaluations.filter(ev => parseInt(ev.n1) > 3), ['حاجة بند 1'], [e => e.n1]);
@@ -731,9 +783,9 @@ document.addEventListener('DOMContentLoaded', () => {
         appendDetailedSheet("حاجة بند1 سجل 4فمافوق", evaluations.filter(ev => parseInt(ev.n1) >= 4), [], [], true);
 
         // كشوفات تفصيلية بكامل المعلومات لكل فئة من فئات ملاحظة 2
-        const note2CategoriesExportList = ['في الخارج', 'أكاديمي', 'حالة خاصة', 'مسجون/ فقيد', 'اقترب تقاعده', 'عادي'];
+        const note2CategoriesExportList = [NOTES2_ABROAD, ...NOTES2_SPECIAL, NOTES2_NORMAL];
         note2CategoriesExportList.forEach(cat => {
-            const catFiltered = evaluations.filter(ev => (ev.notes2 || 'عادي').includes(cat));
+            const catFiltered = evaluations.filter(ev => matchesNotes2Category(ev.notes2, cat));
             if (catFiltered.length > 0) {
                 const safeName = ("ملاحظة2_ " + cat).replace(/[\/\*\[\]\:\?]/g, '-').substring(0, 31);
                 appendDetailedSheet(safeName, catFiltered, [], [], true);
@@ -1178,17 +1230,26 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // Helper to determine row color based on notes
     function getNoteColorInfo(notes, notes2) {
-        const lower2 = (notes2 || '').toLowerCase();
-        
-        const hasAcademic = lower2.includes('أكاديمي') || lower2.includes('اكاديمي');
-        const hasAbroad = lower2.includes('في الخارج') || lower2.includes('بالخارج');
+        const tags = parseNotes2Tags(notes2);
+        const hasAcademic = tags.includes('أكاديمي');
+        const hasAbroad = isNotes2Abroad(notes2);
+        const hasSpecial = hasNotes2SpecialCategory(notes2);
 
-        if (hasAcademic && hasAbroad) {
-            return { rank: -2, className: 'note-bg-acad-abroad' }; // Purple for both
-        } else if (hasAbroad) {
-            return { rank: -1, className: 'note-bg-abroad' }; // Orange for abroad
-        } else if (hasAcademic) {
-            return { rank: 0, className: 'note-bg-green' }; // Light green for academic
+        if (hasAcademic) {
+            return { rank: 0, className: 'note-bg-green' };
+        }
+        if (tags.includes('حالة خاصة')) {
+            return { rank: 1, className: 'note-bg-yellow' };
+        }
+        if (tags.includes('مسجون/ فقيد')) {
+            return { rank: 2, className: 'note-bg-red' };
+        }
+        if (tags.includes(NOTES2_SPECIAL[3])) {
+            return { rank: 3, className: 'note-bg-blue' };
+        }
+        // في الخارج فقط (بدون حالة خاصة) → يُعامل كـ «عادي» بدون تمييز لوني
+        if (hasAbroad && !hasSpecial) {
+            return { rank: 6, className: '' };
         }
 
         if (!notes || notes.trim() === '') return { rank: 6, className: '' };
@@ -1368,9 +1429,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     const searchTerm = normalizeText(filter.value);
                     if (!textVal.includes(searchTerm)) return false;
                 } else if (filter.type === 'multiselect') {
-                    const cellVal = String(ev[filter.key] || '');
-                    // For multiselect (like notes2), check if it includes at least one of the selected filter values
-                    const hasMatch = filter.values.some(v => cellVal.includes(v));
+                    const hasMatch = filter.values.some(v => matchesNotes2Category(ev[filter.key], v));
                     if (!hasMatch) return false;
                 } else {
                     let val = parseFloat(ev[filter.key]) || 0;
@@ -2539,7 +2598,7 @@ document.addEventListener('DOMContentLoaded', () => {
             let outCount = 0;
             let inCount = 0;
             evaluations.forEach(ev => {
-                if ((ev.notes2 || '').includes('في الخارج')) outCount++;
+                if (isNotes2Abroad(ev.notes2)) outCount++;
             });
             inCount = totalEmps > 0 ? (totalEmps - outCount) : (totalEvals - outCount);
             if (inCount < 0) inCount = 0;
@@ -2559,7 +2618,7 @@ document.addEventListener('DOMContentLoaded', () => {
             // --- New Feature: Chart Perf Groups (0-5, 6-10, 11+) ---
             const cPerfGroups = { "0 إلى 5": 0, "6 إلى 10": 0, "11 فما فوق": 0 };
             evaluations.forEach(ev => {
-                if ((ev.notes2 || '').includes('عادي')) {
+                if (isEffectivelyNormalNotes2(ev.notes2)) {
                     const s = ev.perfScore || 0;
                     if (s <= 5) cPerfGroups["0 إلى 5"]++;
                     else if (s <= 10) cPerfGroups["6 إلى 10"]++;
@@ -2732,24 +2791,20 @@ document.addEventListener('DOMContentLoaded', () => {
                 }));
             }
 
-            // Chart 3: Notes2 Distribution
-            let note2Counts = { 'في الخارج': 0, 'أكاديمي': 0, 'حالة خاصة': 0, 'مسجون/ فقيد': 0, 'اقترب تقاعده': 0 };
-            evaluations.forEach(ev => {
-                let n2 = ev.notes2 || 'عادي';
-                // Excluding 'عادي'
-                Object.keys(note2Counts).forEach(k => {
-                    if (n2.includes(k)) note2Counts[k]++;
-                });
-            });
+            // Chart 3: Notes2 Distribution (effective + abroad extraction)
+            const note2Counts = countNotes2Distribution(evaluations);
+            note2Counts[NOTES2_ABROAD] = evaluations.filter(ev => isNotes2Abroad(ev.notes2)).length;
+            const note2ChartLabels = [...NOTES2_SPECIAL, NOTES2_NORMAL, NOTES2_ABROAD];
+            const note2ChartData = note2ChartLabels.map(k => note2Counts[k] || 0);
 
-            const ctx3 = document.getElementById('chartNotes').getContext('2d');
+                        const ctx3 = document.getElementById('chartNotes').getContext('2d');
             reportCharts.push(new Chart(ctx3, {
                 type: 'bar',
                 data: {
-                    labels: Object.keys(note2Counts),
+                    labels: note2ChartLabels,
                     datasets: [{
                         label: 'عدد الموظفين',
-                        data: Object.values(note2Counts),
+                        data: note2ChartData,
                         backgroundColor: '#6366f1'
                     }]
                 },
