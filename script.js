@@ -17,9 +17,19 @@ document.addEventListener('DOMContentLoaded', () => {
     const commRadios = document.querySelectorAll('input[name^="c"]');
     
     // State
-    let evaluations = JSON.parse(localStorage.getItem('evaluations')) || [];
+    let evaluations = [];
+    try {
+        evaluations = JSON.parse(localStorage.getItem('evaluations') || '[]') || [];
+        if (!Array.isArray(evaluations)) evaluations = [];
+    } catch (e) {
+        console.error('خطأ في قراءة التقييمات المحفوظة:', e);
+        evaluations = [];
+    }
     let employeeData = [];
     let currentFilteredData = [];
+    let activeEmpFilters = [];
+    let currentFilteredEmpData = [];
+    let currentMissingEmps = [];
 
     // توحيد الرقم الوظيفي للمقارنة (أرقام عربية/فارسية، Excel، مسافات)
     function normalizeEmpId(id) {
@@ -101,6 +111,446 @@ document.addEventListener('DOMContentLoaded', () => {
         return counts;
     }
 
+    const EMP_STORAGE_KEY = 'employeeData';
+    const EMP_SESSION_KEY = 'employeeData_session';
+
+    function computeEmployeeAge(dob) {
+        if (!dob && dob !== 0) return '';
+        try {
+            let date;
+            const num = Number(dob);
+            if (!isNaN(num) && num > 10000 && num < 90000) {
+                date = new Date(Math.round((num - 25569) * 86400 * 1000));
+            } else {
+                date = new Date(dob);
+            }
+            if (isNaN(date.getTime())) return '';
+            return Math.abs(new Date(Date.now() - date.getTime()).getUTCFullYear() - 1970) || '';
+        } catch (e) {
+            return '';
+        }
+    }
+
+    const EMP_EXCEL_KEYS = [
+        'الرقم الوظيفي', 'الاسم', 'المسمى الوظيفي', 'الدائرة', 'القسم',
+        'الجنس', 'نوع الوظيفة', 'تاريخ الميلاد', 'العمر', 'رقم الجوال',
+        'البريد الالكتروني', 'نوع العقد'
+    ];
+
+    const EMP_HEADER_ALIASES = {
+        'الرقم الوظيفي': ['الرقم الوظيفي', 'رقم وظيفي', 'الرقم', 'رقم الموظف', 'emp id', 'employee id', 'id', 'no', 'num'],
+        'الاسم': ['الاسم', 'اسم الموظف', 'name', 'employee name'],
+        'المسمى الوظيفي': ['المسمى الوظيفي', 'المسمى', 'الوظيفة', 'job title', 'title', 'position'],
+        'الدائرة': ['الدائرة', 'الادارة', 'الإدارة', 'department', 'dept'],
+        'القسم': ['القسم', 'section'],
+        'الجنس': ['الجنس', 'gender', 'sex'],
+        'نوع الوظيفة': ['نوع الوظيفة', 'نوع الوظيفه', 'job type'],
+        'تاريخ الميلاد': ['تاريخ الميلاد', 'تاريخ الولادة', 'dob', 'birth date', 'birthdate'],
+        'العمر': ['العمر', 'age'],
+        'رقم الجوال': ['رقم الجوال', 'الجوال', 'الهاتف', 'mobile', 'phone'],
+        'البريد الالكتروني': ['البريد الالكتروني', 'البريد الإلكتروني', 'الايميل', 'email', 'e-mail'],
+        'نوع العقد': ['نوع العقد', 'العقد', 'contract']
+    };
+
+    function normalizeHeaderKey(key) {
+        return String(key || '')
+            .replace(/^\uFEFF/, '')
+            .trim()
+            .toLowerCase()
+            .replace(/[أإآ]/g, 'ا')
+            .replace(/ة/g, 'ه')
+            .replace(/ى/g, 'ي')
+            .replace(/[\u064B-\u065F]/g, '')
+            .replace(/\s+/g, ' ');
+    }
+
+    function mapHeaderToField(header) {
+        const norm = normalizeHeaderKey(header);
+        if (!norm) return null;
+        for (const [field, aliases] of Object.entries(EMP_HEADER_ALIASES)) {
+            for (const a of aliases) {
+                const aliasNorm = normalizeHeaderKey(a);
+                if (!aliasNorm) continue;
+                if (norm === aliasNorm) return field;
+                if (aliasNorm.length >= 4 && (norm.includes(aliasNorm) || aliasNorm.includes(norm))) return field;
+            }
+        }
+        return null;
+    }
+
+    function rowToArray(row) {
+        if (Array.isArray(row)) return row;
+        if (!row || typeof row !== 'object') return [];
+        const keys = Object.keys(row).map(Number).filter(k => !isNaN(k)).sort((a, b) => a - b);
+        if (keys.length) return keys.map(k => row[k]);
+        return Object.values(row);
+    }
+
+    function rowLooksLikeHeader(row) {
+        const arr = rowToArray(row);
+        let hits = 0;
+        arr.forEach(cell => { if (mapHeaderToField(cell)) hits++; });
+        return hits >= 2;
+    }
+
+    function isEmployeeRow(emp) {
+        const id = String(emp['الرقم الوظيفي'] || '').trim();
+        const name = String(emp['الاسم'] || '').trim();
+        return (id.length > 0) || (name.length > 1);
+    }
+
+    function buildEmpFromRowArray(row) {
+        const arr = rowToArray(row);
+        if (arr.length < 2) return null;
+        const emp = {};
+        EMP_EXCEL_KEYS.forEach((key, idx) => {
+            if (arr[idx] !== undefined && arr[idx] !== null && String(arr[idx]).trim() !== '') {
+                emp[key] = arr[idx];
+            }
+        });
+        const clean = sanitizeEmployeeRecord(emp);
+        return isEmployeeRow(clean) ? clean : null;
+    }
+
+    function parseEmployeeExcelRows(worksheet) {
+        if (!worksheet || !worksheet['!ref']) return [];
+
+        const aoa = XLSX.utils.sheet_to_json(worksheet, { header: 1, raw: false, defval: '', blankrows: false });
+        if (!aoa || aoa.length === 0) return [];
+
+        let headerRowIndex = -1;
+        let colMap = {};
+
+        for (let r = 0; r < Math.min(aoa.length, 15); r++) {
+            const row = rowToArray(aoa[r]);
+            const mapping = {};
+            let matched = 0;
+            row.forEach((cell, colIdx) => {
+                const field = mapHeaderToField(cell);
+                if (field && mapping[field] === undefined) {
+                    mapping[field] = colIdx;
+                    matched++;
+                }
+            });
+            if (matched >= 1 && (mapping['الرقم الوظيفي'] !== undefined || mapping['الاسم'] !== undefined)) {
+                headerRowIndex = r;
+                colMap = mapping;
+                if (matched >= 2) break;
+            }
+        }
+
+        const records = [];
+
+        if (headerRowIndex >= 0) {
+            for (let i = headerRowIndex + 1; i < aoa.length; i++) {
+                const row = rowToArray(aoa[i]);
+                if (!row.length || rowLooksLikeHeader(row)) continue;
+                const emp = {};
+                Object.entries(colMap).forEach(([field, colIdx]) => {
+                    const val = row[colIdx];
+                    if (val !== undefined && val !== null && String(val).trim() !== '') {
+                        emp[field] = val;
+                    }
+                });
+                const clean = sanitizeEmployeeRecord(emp);
+                if (isEmployeeRow(clean)) records.push(clean);
+            }
+            if (records.length > 0) return records;
+        }
+
+        const jsonData = XLSX.utils.sheet_to_json(worksheet, { raw: false, defval: '', blankrows: false });
+        if (jsonData && jsonData.length > 0) {
+            jsonData.forEach(raw => {
+                const emp = {};
+                Object.keys(raw || {}).forEach(key => {
+                    if (String(key).startsWith('__')) return;
+                    const field = mapHeaderToField(key);
+                    if (field) emp[field] = raw[key];
+                });
+                const clean = sanitizeEmployeeRecord(emp);
+                if (isEmployeeRow(clean)) records.push(clean);
+            });
+            if (records.length > 0) return records;
+        }
+
+        for (let i = 0; i < aoa.length; i++) {
+            const row = rowToArray(aoa[i]);
+            if (!row.length || rowLooksLikeHeader(row)) continue;
+            const clean = buildEmpFromRowArray(row);
+            if (clean) records.push(clean);
+        }
+        return records;
+    }
+
+    function parseEmployeeExcelWorkbook(workbook) {
+        if (!workbook || !workbook.SheetNames || !workbook.SheetNames.length) return [];
+        let best = [];
+        workbook.SheetNames.forEach(sheetName => {
+            const ws = workbook.Sheets[sheetName];
+            const rows = parseEmployeeExcelRows(ws);
+            if (rows.length > best.length) best = rows;
+        });
+        return best;
+    }
+
+    function parseEmployeeCsvText(text) {
+        if (!text || typeof XLSX === 'undefined') return [];
+        try {
+            const workbook = XLSX.read(text, { type: 'string', raw: false });
+            return parseEmployeeExcelWorkbook(workbook);
+        } catch (e) {
+            console.error('CSV parse error:', e);
+            return [];
+        }
+    }
+
+    function handleEmployeeExcelFile(file) {
+        if (!file) return;
+        if (typeof XLSX === 'undefined') {
+            alert('مكتبة Excel غير محمّلة. تأكد من الاتصال بالإنترنت وأعد تحميل الصفحة.');
+            return;
+        }
+
+        const isCsv = /\.csv$/i.test(file.name);
+        const reader = new FileReader();
+        reader.onload = function(event) {
+            try {
+                let records = [];
+                if (isCsv) {
+                    records = parseEmployeeCsvText(event.target.result);
+                } else {
+                    const data = new Uint8Array(event.target.result);
+                    const workbook = XLSX.read(data, { type: 'array', cellDates: true, cellNF: true, cellText: false });
+                    records = parseEmployeeExcelWorkbook(workbook);
+                }
+
+                if (records.length > 0) {
+                    employeeData = records;
+                    const saved = saveEmployeeDataToStorage();
+                    pushToGitHub(true);
+                    if (typeof renderEmpTable === 'function') renderEmpTable();
+                    const empTab = document.querySelector('.tab-btn[data-target="emp-data-view"]');
+                    if (empTab) empTab.click();
+                    if (saved) {
+                        alert('تم استيراد ' + employeeData.length + ' سجل بنجاح وحفظها!');
+                    } else {
+                        alert('تم قراءة ' + employeeData.length + ' سجل لكن فشل الحفظ المحلي. جرّب تصدير نسخة احتياطية فوراً.');
+                    }
+                } else {
+                    alert('لم يُعثر على بيانات في الملف.\nتأكد أن الأعمدة تبدأ بـ: الرقم الوظيفي، الاسم، المسمى الوظيفي...\nأو أن الصفوف تبدأ برقم الموظف ثم الاسم.');
+                }
+            } catch (err) {
+                console.error('خطأ استيراد الموظفين:', err);
+                alert('خطأ في قراءة الملف: ' + (err.message || err) + '\nتأكد أن الملف بصيغة .xlsx أو .xls أو .csv');
+            }
+        };
+        reader.onerror = function() {
+            alert('تعذر قراءة الملف من الجهاز.');
+        };
+        if (isCsv) reader.readAsText(file, 'UTF-8');
+        else reader.readAsArrayBuffer(file);
+    }
+
+    function setupEmployeeImport() {
+        const input = document.getElementById('emp-excel-upload');
+        if (!input) return;
+
+        if (input.dataset.bound !== '1') {
+            input.dataset.bound = '1';
+            input.addEventListener('change', function(e) {
+                const file = e.target.files && e.target.files[0];
+                handleEmployeeExcelFile(file);
+                e.target.value = '';
+            });
+        }
+
+        const btn = document.getElementById('emp-excel-import-btn');
+        if (btn && btn.dataset.bound !== '1') {
+            btn.dataset.bound = '1';
+            btn.addEventListener('click', function() {
+                input.click();
+            });
+        }
+    }
+
+    function sanitizeEmployeeRecord(emp) {
+        const clean = {};
+        Object.keys(emp || {}).forEach(key => {
+            let val = emp[key];
+            if (val === undefined || val === null) return;
+            if (val instanceof Date) {
+                val = val.toISOString().split('T')[0];
+            } else if (typeof val === 'object') {
+                val = String(val);
+            }
+            clean[key] = val;
+        });
+        if (clean['الرقم الوظيفي']) {
+            clean['الرقم الوظيفي'] = normalizeEmpId(clean['الرقم الوظيفي']);
+        }
+        if (clean['تاريخ الميلاد'] && !clean['العمر']) {
+            const age = computeEmployeeAge(clean['تاريخ الميلاد']);
+            if (age !== '') clean['العمر'] = age;
+        }
+        return clean;
+    }
+
+    function loadEmployeeDataFromStorage() {
+        const sources = [
+            () => localStorage.getItem(EMP_STORAGE_KEY),
+            () => sessionStorage.getItem(EMP_SESSION_KEY)
+        ];
+        for (const getRaw of sources) {
+            try {
+                const raw = getRaw();
+                if (!raw) continue;
+                const parsed = JSON.parse(raw);
+                if (!Array.isArray(parsed)) continue;
+                return parsed.map(sanitizeEmployeeRecord);
+            } catch (e) {
+                console.error('خطأ في تحميل بيانات الموظفين:', e);
+            }
+        }
+        return [];
+    }
+
+    function saveEmployeeDataToStorage(silent = false) {
+        try {
+            const sanitized = employeeData.map(sanitizeEmployeeRecord);
+            const json = JSON.stringify(sanitized);
+            localStorage.setItem(EMP_STORAGE_KEY, json);
+            try {
+                sessionStorage.setItem(EMP_SESSION_KEY, json);
+            } catch (sessErr) {
+                console.warn('تعذر الحفظ في sessionStorage:', sessErr);
+            }
+            employeeData = sanitized;
+            touchDataTimestamp();
+            pushToGitHub();
+            return true;
+        } catch (e) {
+            console.error('خطأ في حفظ بيانات الموظفين:', e);
+            if (!silent) {
+                alert('تعذر حفظ بيانات الموظفين محلياً. قد يكون التخزين ممتلئاً — جرّب حذف بيانات قديمة أو متصفحاً آخر.');
+            }
+            return false;
+        }
+    }
+
+    function reloadFromLocalStorage() {
+        try {
+            const rawEvals = localStorage.getItem('evaluations');
+            if (rawEvals) {
+                const parsed = JSON.parse(rawEvals);
+                if (Array.isArray(parsed)) {
+                    evaluations = migrateEvaluationList(parsed);
+                }
+            }
+        } catch (e) {
+            console.error('خطأ إعادة تحميل التقييمات:', e);
+        }
+        employeeData = loadEmployeeDataFromStorage();
+    }
+
+    function migrateEvaluationList(list) {
+        return (list || []).map(ev => {
+            if (ev.c1 === undefined && ev.n8 !== undefined) {
+                ev.c1 = parseFloat(ev.n8) || 0;
+            }
+            ev.perfScore = (parseFloat(ev.p1)||0) + (parseFloat(ev.p2)||0) + (parseFloat(ev.p3)||0) + (parseFloat(ev.p4)||0) + (parseFloat(ev.p5)||0);
+            ev.needScore = (parseFloat(ev.n1)||0) + (parseFloat(ev.n2)||0) + (parseFloat(ev.n3)||0) + (parseFloat(ev.n4)||0) + (parseFloat(ev.n5)||0) + (parseFloat(ev.n6)||0) + (parseFloat(ev.n7)||0);
+            ev.commScore = parseFloat(ev.c1) || 0;
+            ev.totalScore = ev.perfScore + ev.needScore;
+            if (ev.id !== undefined && ev.id !== null && ev.id !== '') {
+                ev.id = normalizeEmpId(ev.id);
+            }
+            return ev;
+        });
+    }
+
+    function touchDataTimestamp() {
+        localStorage.setItem('dataUpdatedAt', new Date().toISOString());
+    }
+
+    function pushToGitHub(immediate) {
+        if (!window.GitHubSync) return;
+        window.GitHubSync.scheduleSave({ evaluations, employeeData }, !!immediate);
+    }
+
+    function applyRemoteData(remote) {
+        let changed = false;
+        if (Array.isArray(remote.evaluations) && remote.evaluations.length > 0) {
+            evaluations = migrateEvaluationList(remote.evaluations);
+            changed = true;
+        }
+        if (Array.isArray(remote.employeeData) && remote.employeeData.length > 0) {
+            employeeData = remote.employeeData.map(sanitizeEmployeeRecord);
+            changed = true;
+        }
+        if (changed) {
+            localStorage.setItem('evaluations', JSON.stringify(evaluations));
+            localStorage.setItem(EMP_STORAGE_KEY, JSON.stringify(employeeData));
+            sessionStorage.setItem(EMP_SESSION_KEY, JSON.stringify(employeeData));
+            if (remote.updatedAt) localStorage.setItem('dataUpdatedAt', remote.updatedAt);
+        }
+        return changed;
+    }
+
+    function hasLocalData() {
+        return evaluations.length > 0 || employeeData.length > 0;
+    }
+
+    function hasRemoteData(remote) {
+        if (!remote) return false;
+        return (remote.evaluations && remote.evaluations.length > 0) ||
+            (remote.employeeData && remote.employeeData.length > 0);
+    }
+
+    async function syncFromGitHub(onlyIfLocalEmpty = false) {
+        if (!window.GitHubSync || !window.GitHubSync.isConfigured()) {
+            if (window.GitHubSync) window.GitHubSync.setStatus('التخزين المحلي', 'offline');
+            return false;
+        }
+
+        reloadFromLocalStorage();
+        const localHas = hasLocalData();
+
+        if (onlyIfLocalEmpty && localHas) {
+            window.GitHubSync.setStatus('محفوظ محلياً (' + evaluations.length + ' تقييم)', 'ok');
+            return false;
+        }
+
+        const remote = await window.GitHubSync.loadAll();
+        if (!hasRemoteData(remote)) {
+            if (localHas) pushToGitHub(true);
+            return false;
+        }
+
+        if (!localHas) {
+            return applyRemoteData(remote);
+        }
+
+        const localTs = localStorage.getItem('dataUpdatedAt') || '';
+        const remoteTs = remote.updatedAt || '';
+        const remoteEvalCount = (remote.evaluations || []).length;
+        const remoteEmpCount = (remote.employeeData || []).length;
+
+        if (remoteTs && localTs && remoteTs > localTs) {
+            if (remoteEvalCount >= evaluations.length) {
+                return applyRemoteData(remote);
+            }
+            if (remoteEmpCount > employeeData.length) {
+                employeeData = remote.employeeData.map(sanitizeEmployeeRecord);
+                localStorage.setItem(EMP_STORAGE_KEY, JSON.stringify(employeeData));
+                sessionStorage.setItem(EMP_SESSION_KEY, JSON.stringify(employeeData));
+                return true;
+            }
+        }
+
+        pushToGitHub(true);
+        return false;
+    }
+
     function refreshMissingEmpsView() {
         const compare = document.getElementById('compare-emp-btn');
         const addMissing = document.getElementById('add-missing-emp-btn');
@@ -116,22 +566,33 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
-    // Migrate and recalculate old data to ensure consistency with new schema (c1 separated from needScore)
-    evaluations = evaluations.map(ev => {
-        if (ev.c1 === undefined && ev.n8 !== undefined) {
-            ev.c1 = parseFloat(ev.n8) || 0;
-        }
-        ev.perfScore = (parseFloat(ev.p1)||0) + (parseFloat(ev.p2)||0) + (parseFloat(ev.p3)||0) + (parseFloat(ev.p4)||0) + (parseFloat(ev.p5)||0);
-        ev.needScore = (parseFloat(ev.n1)||0) + (parseFloat(ev.n2)||0) + (parseFloat(ev.n3)||0) + (parseFloat(ev.n4)||0) + (parseFloat(ev.n5)||0) + (parseFloat(ev.n6)||0) + (parseFloat(ev.n7)||0);
-        ev.commScore = parseFloat(ev.c1) || 0;
-        ev.totalScore = ev.perfScore + ev.needScore;
-        if (ev.id !== undefined && ev.id !== null && ev.id !== '') {
-            ev.id = normalizeEmpId(ev.id);
-        }
-        
-        return ev;
-    });
+    evaluations = migrateEvaluationList(evaluations);
     localStorage.setItem('evaluations', JSON.stringify(evaluations));
+    employeeData = loadEmployeeDataFromStorage();
+
+    if (!localStorage.getItem('dataUpdatedAt') && hasLocalData()) {
+        touchDataTimestamp();
+    }
+
+    function updateSavedCount() {
+        if (savedCountEl) {
+            savedCountEl.textContent = String(evaluations.length);
+        }
+    }
+
+    updateSavedCount();
+    setupEmployeeImport();
+
+    window.addEventListener('beforeunload', () => {
+        if (employeeData.length > 0) {
+            try {
+                const json = JSON.stringify(employeeData.map(sanitizeEmployeeRecord));
+                localStorage.setItem(EMP_STORAGE_KEY, json);
+                sessionStorage.setItem(EMP_SESSION_KEY, json);
+            } catch (e) { /* ignore */ }
+        }
+        if (hasLocalData()) pushToGitHub(true);
+    });
 
     // --- Tabs Logic ---
     const tabBtns = document.querySelectorAll('.tab-btn');
@@ -167,6 +628,8 @@ document.addEventListener('DOMContentLoaded', () => {
             
             if (target === 'table-view') {
                 renderTable();
+            } else if (target === 'emp-data-view') {
+                renderEmpTable();
             } else if (target === 'statistics-view') {
                 showStatsSubPanel('stats-tables-panel');
             }
@@ -1006,19 +1469,22 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     const searchInput = document.getElementById('search-input');
-    searchInput.addEventListener('input', () => renderTable());
+    if (searchInput) {
+        searchInput.addEventListener('input', () => renderTable());
+    }
 
     const colMgrBtn = document.getElementById('col-mgr-btn');
     const colDropdown = document.getElementById('col-dropdown');
     const colDropdownList = document.getElementById('col-dropdown-list');
 
-    colMgrBtn.addEventListener('click', () => {
-        colDropdown.style.display = colDropdown.style.display === 'none' ? 'flex' : 'none';
-    });
+    if (colMgrBtn && colDropdown) {
+        colMgrBtn.addEventListener('click', () => {
+            colDropdown.style.display = colDropdown.style.display === 'none' ? 'flex' : 'none';
+        });
+    }
 
-    // Close dropdown on click outside
     document.addEventListener('click', (e) => {
-        if (!colMgrBtn.contains(e.target) && !colDropdown.contains(e.target)) {
+        if (colMgrBtn && colDropdown && !colMgrBtn.contains(e.target) && !colDropdown.contains(e.target)) {
             colDropdown.style.display = 'none';
         }
         
@@ -1031,6 +1497,7 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 
     function renderColumnManager() {
+        if (!colDropdownList) return;
         colDropdownList.innerHTML = '';
         colsState.forEach((col, index) => {
             if (col.locked) return; // Don't show locked columns in manager
@@ -1381,8 +1848,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 .replace(/[\u064B-\u065F]/g, ''); // Remove diacritics
         }
 
-        // Filter evaluations by search
-        const query = normalizeText(searchInput.value.trim());
+        const query = normalizeText((searchInput && searchInput.value) ? searchInput.value.trim() : '');
         const searchTerms = query.split(/\s+/).filter(t => t.length > 0);
         
         // Sync data from employeeData
@@ -1564,10 +2030,14 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         }
 
-        // Sync scrollbar size
-        setTimeout(() => {
-            topScrollContent.style.width = document.querySelector('.data-table').offsetWidth + 'px';
-        }, 50);
+        updateSavedCount();
+
+        if (topScrollContent) {
+            setTimeout(() => {
+                const table = document.querySelector('.data-table');
+                if (table) topScrollContent.style.width = table.offsetWidth + 'px';
+            }, 50);
+        }
     }
 
     window.editRow = function(index) {
@@ -1627,14 +2097,13 @@ document.addEventListener('DOMContentLoaded', () => {
 
     function saveToLocal() {
         localStorage.setItem('evaluations', JSON.stringify(evaluations));
-    }
-
-    function updateSavedCount() {
-        savedCountEl.textContent = evaluations.length;
+        touchDataTimestamp();
+        pushToGitHub();
     }
 
     // --- Delete All ---
-    document.getElementById('delete-all-btn').addEventListener('click', () => {
+    const deleteAllBtn = document.getElementById('delete-all-btn');
+    if (deleteAllBtn) deleteAllBtn.addEventListener('click', () => {
         if(evaluations.length === 0) {
             alert('لا توجد تقييمات لحذفها.');
             return;
@@ -1648,7 +2117,8 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 
     // --- Export Template (Excel) ---
-    document.getElementById('export-template-btn').addEventListener('click', () => {
+    const exportTemplateBtn = document.getElementById('export-template-btn');
+    if (exportTemplateBtn) exportTemplateBtn.addEventListener('click', () => {
         // Create an empty worksheet with headers
         const headers = [
             "الرقم الوظيفي", "اسم الموظف", "المسمى الوظيفي", "الدائرة", "القسم", "تاريخ الميلاد",
@@ -1697,7 +2167,8 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 
     // --- Export Data (Excel) ---
-    document.getElementById('export-data-btn').addEventListener('click', () => {
+    const exportDataBtn = document.getElementById('export-data-btn');
+    if (exportDataBtn) exportDataBtn.addEventListener('click', () => {
         if (currentFilteredData.length === 0) {
             alert('لا توجد بيانات لتصديرها (الجدول فارغ).');
             return;
@@ -1842,7 +2313,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // --- Import Excel Data ---
     const excelUpload = document.getElementById('excel-upload');
-    excelUpload.addEventListener('change', function(e) {
+    if (excelUpload) excelUpload.addEventListener('change', function(e) {
         const file = e.target.files[0];
         if (!file) return;
 
@@ -1923,9 +2394,9 @@ document.addEventListener('DOMContentLoaded', () => {
                     }
                     
                     saveToLocal();
+                    pushToGitHub(true);
                     updateSavedCount();
                     
-                    // Switch to table view
                     document.querySelector('.tab-btn[data-target="table-view"]').click();
                     
                     alert(`تم استيراد ${importCount} تقييم بنجاح!`);
@@ -1936,16 +2407,13 @@ document.addEventListener('DOMContentLoaded', () => {
                 console.error(err);
                 alert('حدث خطأ أثناء قراءة الملف. تأكد من أنه بصيغة قالب التقييم الصحيحة.');
             }
-            // Reset input so the same file can be uploaded again if needed
-            excelUpload.value = '';
+            e.target.value = '';
         };
         
         reader.readAsArrayBuffer(file);
     });
 
     // --- Employee Data Logic --- //
-    let currentMissingEmps = [];
-    
     // Default columns for employee data
     const defaultEmpCols = [
         "الرقم الوظيفي", "الاسم", "المسمى الوظيفي", "الدائرة", "القسم", 
@@ -1986,22 +2454,9 @@ document.addEventListener('DOMContentLoaded', () => {
     }
     renderEmpColumnManager();
 
-    try {
-        const storedEmpData = localStorage.getItem('employeeData');
-        if (storedEmpData) {
-            employeeData = JSON.parse(storedEmpData);
-            employeeData.forEach(emp => {
-                if (emp['الرقم الوظيفي']) {
-                    emp['الرقم الوظيفي'] = normalizeEmpId(emp['الرقم الوظيفي']);
-                }
-                if (emp['تاريخ الميلاد'] && !emp['العمر']) {
-                    emp['العمر'] = Math.abs(new Date(Date.now() - new Date(emp['تاريخ الميلاد']).getTime()).getUTCFullYear() - 1970) || '';
-                }
-            });
-            localStorage.setItem('employeeData', JSON.stringify(employeeData));
-            renderEmpTable();
-        }
-    } catch(e) {}
+    if (employeeData.length > 0) {
+        renderEmpTable();
+    }
 
     // --- Advanced Filter for Employee Data ---
     const empAdvFilterBtn = document.getElementById('emp-adv-filter-btn');
@@ -2011,9 +2466,6 @@ document.addEventListener('DOMContentLoaded', () => {
     const empFilterRulesContainer = document.getElementById('emp-filter-rules-container');
     const applyEmpFiltersBtn = document.getElementById('apply-emp-filters-btn');
     const clearEmpFiltersBtn = document.getElementById('clear-emp-filters-btn');
-    
-    let activeEmpFilters = [];
-    let currentFilteredEmpData = [];
 
     const empFilterableFields = [
         { key: "الاسم", label: "الاسم", type: 'text' },
@@ -2316,7 +2768,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 emp[input.name] = input.value;
             });
             
-            localStorage.setItem('employeeData', JSON.stringify(employeeData));
+            saveEmployeeDataToStorage();
             renderEmpTable();
             closeEmpModal();
         });
@@ -2395,53 +2847,23 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
-    document.getElementById('emp-excel-upload').addEventListener('change', function(e) {
-        const file = e.target.files[0];
-        if (!file) return;
+    setupEmployeeImport();
 
-        const reader = new FileReader();
-        reader.onload = function(event) {
-            try {
-                const data = new Uint8Array(event.target.result);
-                const workbook = XLSX.read(data, {type: 'array'});
-                const firstSheetName = workbook.SheetNames[0];
-                const worksheet = workbook.Sheets[firstSheetName];
-                
-                // Read as objects using the first row as headers
-                const jsonData = XLSX.utils.sheet_to_json(worksheet);
-                
-                if (jsonData && jsonData.length > 0) {
-                    employeeData = jsonData.map(emp => {
-                        if (emp['الرقم الوظيفي'] !== undefined && emp['الرقم الوظيفي'] !== null && emp['الرقم الوظيفي'] !== '') {
-                            emp['الرقم الوظيفي'] = normalizeEmpId(emp['الرقم الوظيفي']);
-                        }
-                        return emp;
-                    });
-                    localStorage.setItem('employeeData', JSON.stringify(employeeData));
-                    renderEmpTable();
-                    alert(`تم استيراد ${employeeData.length} سجل بنجاح!`);
-                } else {
-                    alert('الملف فارغ أو لا يحتوي على بيانات صحيحة.');
-                }
-            } catch (err) {
-                console.error(err);
-                alert('حدث خطأ أثناء قراءة الملف. تأكد من أنه بصيغة إكسل صحيحة.');
-            }
-            e.target.value = ''; // Reset
-        };
-        reader.readAsArrayBuffer(file);
-    });
-
-    document.getElementById('delete-emp-data-btn').addEventListener('click', () => {
+    const deleteEmpDataBtn = document.getElementById('delete-emp-data-btn');
+    if (deleteEmpDataBtn) deleteEmpDataBtn.addEventListener('click', () => {
         if(confirm('هل أنت متأكد من حذف كافة بيانات الموظفين؟')) {
             employeeData = [];
-            localStorage.removeItem('employeeData');
+            localStorage.removeItem(EMP_STORAGE_KEY);
+            sessionStorage.removeItem(EMP_SESSION_KEY);
+            touchDataTimestamp();
+            pushToGitHub(true);
             renderEmpTable();
             alert('تم حذف بيانات الموظفين.');
         }
     });
 
-    document.getElementById('export-emp-data-btn').addEventListener('click', () => {
+    const exportEmpDataBtn = document.getElementById('export-emp-data-btn');
+    if (exportEmpDataBtn) exportEmpDataBtn.addEventListener('click', () => {
         const dataToExport = currentFilteredEmpData && currentFilteredEmpData.length > 0 ? currentFilteredEmpData : employeeData;
         
         if (dataToExport.length === 0) {
@@ -2930,8 +3352,59 @@ document.addEventListener('DOMContentLoaded', () => {
     const exportBackupBtn = document.getElementById('export-backup-btn');
     const importBackupUpload = document.getElementById('import-backup-upload');
 
+    function loadGitHubSettingsForm() {
+        if (!window.GitHubSync) return;
+        const s = window.GitHubSync.getSettingsForForm();
+        const ownerEl = document.getElementById('gh-owner');
+        const repoEl = document.getElementById('gh-repo');
+        const branchEl = document.getElementById('gh-branch');
+        const pathEl = document.getElementById('gh-filepath');
+        const tokenEl = document.getElementById('gh-token');
+        const tokenHint = document.getElementById('gh-token-hint');
+        if (ownerEl) ownerEl.value = s.owner || '';
+        if (repoEl) repoEl.value = s.repo || '';
+        if (branchEl) branchEl.value = s.branch || 'main';
+        if (pathEl) pathEl.value = s.filePath || 'data/survey-data.json';
+        if (tokenEl) tokenEl.value = '';
+        if (tokenHint) {
+            tokenHint.textContent = s.hasToken
+                ? '✓ يوجد رمز محفوظ في هذه الجلسة'
+                : 'أدخل رمز GitHub لرفع البيانات على المستودع';
+        }
+    }
+
+    const saveGhSettingsBtn = document.getElementById('save-gh-settings');
+    if (saveGhSettingsBtn) {
+        saveGhSettingsBtn.addEventListener('click', () => {
+            if (!window.GitHubSync) return;
+            window.GitHubSync.saveSettings({
+                owner: document.getElementById('gh-owner')?.value,
+                repo: document.getElementById('gh-repo')?.value,
+                branch: document.getElementById('gh-branch')?.value,
+                filePath: document.getElementById('gh-filepath')?.value,
+                token: document.getElementById('gh-token')?.value
+            });
+            loadGitHubSettingsForm();
+            alert('تم حفظ إعدادات GitHub.');
+        });
+    }
+
+    const syncGhNowBtn = document.getElementById('sync-gh-now');
+    if (syncGhNowBtn) {
+        syncGhNowBtn.addEventListener('click', async () => {
+            const changed = await syncFromGitHub();
+            updateSavedCount();
+            renderTable();
+            if (employeeData.length > 0) renderEmpTable();
+            if (changed) alert('تم تحديث البيانات من GitHub.');
+            else if (window.GitHubSync?.hasToken()) alert('تمت المزامنة — البيانات المحلية هي الأحدث.');
+            else alert('تم التحقق. أضف رمز GitHub لرفع البيانات.');
+        });
+    }
+
     if (settingsBtn && settingsModal) {
         settingsBtn.addEventListener('click', () => {
+            loadGitHubSettingsForm();
             settingsModal.classList.remove('hidden');
             settingsModal.style.display = 'flex';
         });
@@ -2985,7 +3458,9 @@ document.addEventListener('DOMContentLoaded', () => {
                             localStorage.setItem('evaluations', JSON.stringify(importedData.evaluations));
                         }
                         if (importedData.employeeData) {
-                            localStorage.setItem('employeeData', JSON.stringify(importedData.employeeData));
+                            const empJson = JSON.stringify(importedData.employeeData);
+                            localStorage.setItem(EMP_STORAGE_KEY, empJson);
+                            sessionStorage.setItem(EMP_SESSION_KEY, empJson);
                         }
                         if (importedData.colsState) {
                             localStorage.setItem('colsState', JSON.stringify(importedData.colsState));
@@ -2993,6 +3468,7 @@ document.addEventListener('DOMContentLoaded', () => {
                         if (importedData.empColsState) {
                             localStorage.setItem('empColsState', JSON.stringify(importedData.empColsState));
                         }
+                        touchDataTimestamp();
                         
                         alert('تم استيراد النسخة الاحتياطية بنجاح! سيتم إعادة تحميل الصفحة لتطبيق التغييرات.');
                         window.location.reload();
@@ -3009,9 +3485,27 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
-    // Initialize
-    updateSavedCount();
-    
-    // Set table view as default
-    document.querySelector('.tab-btn[data-target="table-view"]').click();
+    function finishInit() {
+        reloadFromLocalStorage();
+        updateSavedCount();
+        try {
+            renderTable();
+        } catch (renderErr) {
+            console.error('خطأ عرض الجدول:', renderErr);
+        }
+        if (employeeData.length > 0) renderEmpTable();
+        const tableTab = document.querySelector('.tab-btn[data-target="table-view"]');
+        if (tableTab) tableTab.click();
+    }
+
+    finishInit();
+
+    // مزامنة GitHub فقط إذا المحلي فارغ — لا تُمس البيانات المحلية تلقائياً
+    syncFromGitHub(true).then((changed) => {
+        if (changed) {
+            updateSavedCount();
+            renderTable();
+            if (employeeData.length > 0) renderEmpTable();
+        }
+    }).catch((err) => console.error('مزامنة GitHub:', err));
 });

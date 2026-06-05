@@ -70,6 +70,7 @@
             <div class="header-content">
                 <h1>استبانة تقييم الموظفين</h1>
                 <p>حسب معايير الأداء والحاجة</p>
+                <span id="sync-status" class="sync-status sync-idle" style="display:none;">التخزين المحلي</span>
             </div>
             <div class="header-actions">
                 <button type="button" class="btn btn-outline" id="export-data-btn">
@@ -457,10 +458,10 @@
             <div class="toolbar emp-toolbar">
                 <div class="toolbar-group">
                     <div class="excel-import-widget">
-                        <label for="emp-excel-upload" class="btn btn-primary upload-btn-inline">
+                        <button type="button" class="btn btn-primary upload-btn-inline" id="emp-excel-import-btn">
                             استيراد بيانات الموظفين
-                        </label>
-                        <input type="file" id="emp-excel-upload" accept=".xlsx, .xls" class="hidden-input">
+                        </button>
+                        <input type="file" id="emp-excel-upload" accept=".xlsx,.xls,.xlsm,.csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/vnd.ms-excel,text/csv" class="hidden-input">
                     </div>
                     <button type="button" class="btn btn-outline-dark" id="export-emp-data-btn">تصدير لملف إكسل</button>
                     <button type="button" class="btn btn-danger btn-sm" id="delete-emp-data-btn">حذف بيانات الموظفين</button>
@@ -660,6 +661,39 @@
                     <button class="close-btn" id="close-settings">&times;</button>
                 </div>
                 <div class="modal-body" style="padding: 2rem;">
+                    <div class="github-settings-section" style="margin-bottom: 1.5rem; padding-bottom: 1.5rem; border-bottom: 1px solid var(--border-color);">
+                        <h3 style="margin: 0 0 0.5rem;">حفظ البيانات على GitHub</h3>
+                        <p style="margin: 0 0 1rem; font-size: 0.9rem; color: var(--text-muted, #666);">
+                            البيانات تُحفظ تلقائياً في المتصفح. لرفعها على مستودع GitHub أدخل البيانات أدناه ورمز الوصول (PAT).
+                        </p>
+                        <div class="grid-2-col" style="gap: 0.75rem; margin-bottom: 0.75rem;">
+                            <div>
+                                <label for="gh-owner" style="font-size: 0.85rem;">مالك المستودع</label>
+                                <input type="text" id="gh-owner" placeholder="username" style="width:100%; padding:0.5rem; margin-top:0.25rem;">
+                            </div>
+                            <div>
+                                <label for="gh-repo" style="font-size: 0.85rem;">اسم المستودع</label>
+                                <input type="text" id="gh-repo" placeholder="repo-name" style="width:100%; padding:0.5rem; margin-top:0.25rem;">
+                            </div>
+                            <div>
+                                <label for="gh-branch" style="font-size: 0.85rem;">الفرع</label>
+                                <input type="text" id="gh-branch" value="main" style="width:100%; padding:0.5rem; margin-top:0.25rem;">
+                            </div>
+                            <div>
+                                <label for="gh-filepath" style="font-size: 0.85rem;">مسار ملف البيانات</label>
+                                <input type="text" id="gh-filepath" value="data/survey-data.json" style="width:100%; padding:0.5rem; margin-top:0.25rem;">
+                            </div>
+                        </div>
+                        <div style="margin-bottom: 0.75rem;">
+                            <label for="gh-token" style="font-size: 0.85rem;">رمز GitHub (PAT)</label>
+                            <input type="password" id="gh-token" placeholder="ghp_..." style="width:100%; padding:0.5rem; margin-top:0.25rem;">
+                            <p id="gh-token-hint" style="font-size: 0.8rem; color: var(--text-muted, #666); margin: 0.35rem 0 0;"></p>
+                        </div>
+                        <div style="display:flex; gap:0.5rem; flex-wrap:wrap;">
+                            <button type="button" class="btn btn-primary btn-sm" id="save-gh-settings">حفظ إعدادات GitHub</button>
+                            <button type="button" class="btn btn-outline btn-sm" id="sync-gh-now">مزامنة الآن</button>
+                        </div>
+                    </div>
                     <div style="display: flex; gap: 1rem; justify-content: center; flex-wrap: wrap;">
                         <button type="button" class="btn" id="export-backup-btn" style="background-color: var(--primary-color); color: white; padding: 0.8rem 1.5rem; border-radius: var(--radius-md); border: none; cursor: pointer; display: flex; align-items: center; gap: 0.5rem; font-family: inherit; font-size: 1rem; font-weight: bold;">
                             <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>
@@ -742,6 +776,8 @@
         });
     })();
     </script>
+    <script src="github-config.js"></script>
+    <script src="github-sync.js"></script>
     <script src="script.js"></script>
 </body>
 </html>

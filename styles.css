@@ -283,6 +283,38 @@ body.login-active {
     opacity: 0.9;
 }
 
+.sync-status {
+    display: inline-flex;
+    align-items: center;
+    margin-top: 0.35rem;
+    padding: 0.15rem 0.5rem;
+    border-radius: 12px;
+    font-size: 0.7rem;
+    font-weight: 600;
+    background: rgba(255,255,255,0.15);
+    color: rgba(255,255,255,0.9);
+}
+
+.sync-status.sync-ok {
+    background: rgba(16, 185, 129, 0.25);
+    color: #d1fae5;
+}
+
+.sync-status.sync-syncing {
+    background: rgba(251, 191, 36, 0.25);
+    color: #fef3c7;
+}
+
+.sync-status.sync-error {
+    background: rgba(239, 68, 68, 0.3);
+    color: #fee2e2;
+}
+
+.sync-status.sync-offline {
+    background: rgba(255,255,255,0.1);
+    color: rgba(255,255,255,0.7);
+}
+
 .header-actions {
     display: flex;
     align-items: center;
