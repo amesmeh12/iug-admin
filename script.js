@@ -18,6 +18,7 @@ document.addEventListener('DOMContentLoaded', () => {
     
     // State
     let evaluations = JSON.parse(localStorage.getItem('evaluations')) || [];
+    let employeeData = [];
     let currentFilteredData = [];
 
     // توحيد الرقم الوظيفي للمقارنة (أرقام عربية/فارسية، Excel، مسافات)
@@ -136,23 +137,38 @@ document.addEventListener('DOMContentLoaded', () => {
     const tabBtns = document.querySelectorAll('.tab-btn');
     const views = document.querySelectorAll('.view-section');
 
+    function showStatsSubPanel(panelId) {
+        document.querySelectorAll('.sub-tab-btn').forEach(b => {
+            b.classList.toggle('active', b.getAttribute('data-subtarget') === panelId);
+        });
+        document.getElementById('stats-tables-panel').style.display = panelId === 'stats-tables-panel' ? 'block' : 'none';
+        document.getElementById('stats-report-panel').style.display = panelId === 'stats-report-panel' ? 'block' : 'none';
+        if (panelId === 'stats-tables-panel') {
+            generateStatistics();
+        } else if (panelId === 'stats-report-panel') {
+            generateVisualReport();
+        }
+    }
+
+    document.querySelectorAll('.sub-tab-btn').forEach(btn => {
+        btn.addEventListener('click', () => {
+            showStatsSubPanel(btn.getAttribute('data-subtarget'));
+        });
+    });
+
     tabBtns.forEach(btn => {
         btn.addEventListener('click', () => {
-            // Remove active from all
             tabBtns.forEach(b => b.classList.remove('active'));
             views.forEach(v => v.style.display = 'none');
             
-            // Add active to clicked
             btn.classList.add('active');
             const target = btn.getAttribute('data-target');
             document.getElementById(target).style.display = 'block';
             
-            if(target === 'table-view') {
+            if (target === 'table-view') {
                 renderTable();
-            } else if (target === 'stats-view') {
-                generateStatistics();
-            } else if (target === 'report-view') {
-                generateVisualReport();
+            } else if (target === 'statistics-view') {
+                showStatsSubPanel('stats-tables-panel');
             }
         });
     });
@@ -301,7 +317,8 @@ document.addEventListener('DOMContentLoaded', () => {
         ];
         htmlContent += createStatsTable('إحصائية حسب مكان التواجد', ['مكان التواجد', 'العدد', 'النسبة'], locationRows);
 
-        // 4. Stats by Note 2 Items        const note2Counts = countNotes2Distribution(evaluations);
+        // 4. Stats by Note 2 Items
+        const note2Counts = countNotes2Distribution(evaluations);
         const note2Categories = [...NOTES2_SPECIAL, NOTES2_NORMAL];
         
         let note2TotalUI = 0;
@@ -1927,7 +1944,6 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 
     // --- Employee Data Logic --- //
-    let employeeData = [];
     let currentMissingEmps = [];
     
     // Default columns for employee data
@@ -2900,7 +2916,12 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
-    document.getElementById('generate-report-btn').addEventListener('click', generateVisualReport);
+    document.getElementById('generate-report-btn')?.addEventListener('click', generateVisualReport);
+    document.getElementById('print-report-btn')?.addEventListener('click', () => {
+        document.body.classList.add('printing-report');
+        window.print();
+        document.body.classList.remove('printing-report');
+    });
 
     // --- Settings & Backup Logic ---
     const settingsBtn = document.getElementById('settings-btn');
