@@ -370,6 +370,18 @@ body.login-active {
     background-color: var(--card-bg);
 }
 
+.tab-btn-external {
+    background-color: #16a34a;
+    color: #fff;
+    border-bottom-color: #15803d;
+    border-radius: var(--radius-sm) var(--radius-sm) 0 0;
+}
+
+.tab-btn-external:hover {
+    background-color: #15803d;
+    color: #fff;
+}
+
 /* Sub-tabs (الإحصائيات) */
 .sub-tabs-container {
     display: flex;

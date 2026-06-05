@@ -619,6 +619,12 @@ document.addEventListener('DOMContentLoaded', () => {
 
     tabBtns.forEach(btn => {
         btn.addEventListener('click', () => {
+            const externalUrl = btn.getAttribute('data-external');
+            if (externalUrl) {
+                window.location.href = externalUrl;
+                return;
+            }
+
             tabBtns.forEach(b => b.classList.remove('active'));
             views.forEach(v => v.style.display = 'none');
             
