@@ -2866,7 +2866,7 @@ document.addEventListener('DOMContentLoaded', () => {
         
         filteredData.forEach((emp) => {
             const ind = resolveEmployeeIndex(emp);
-            const empIdStr = JSON.stringify(String(emp['الرقم الوظيفي'] || ''));
+            const empIdEnc = encodeURIComponent(String(emp['الرقم الوظيفي'] || ''));
             const tr = document.createElement('tr');
             visibleKeys.forEach(key => {
                 const td = document.createElement('td');
@@ -2878,9 +2878,9 @@ document.addEventListener('DOMContentLoaded', () => {
             });
             const actionTd = document.createElement('td');
             actionTd.innerHTML = `
-                <button type="button" class="action-btn rate-row-btn" onclick="rateEmpFromData(${ind}, ${empIdStr})">تقييم</button>
-                <button type="button" class="action-btn edit-row-btn" onclick="editEmpRow(${ind}, ${empIdStr})">تعديل</button>
-                <button type="button" class="action-btn del-row-btn" onclick="deleteEmpRow(${ind}, ${empIdStr})">حذف</button>
+                <button type="button" class="action-btn rate-row-btn rate-emp-btn" data-emp-index="${ind}" data-emp-id="${empIdEnc}">تقييم</button>
+                <button type="button" class="action-btn edit-row-btn edit-emp-btn" data-emp-index="${ind}" data-emp-id="${empIdEnc}">تعديل</button>
+                <button type="button" class="action-btn del-row-btn del-emp-btn" data-emp-index="${ind}" data-emp-id="${empIdEnc}">حذف</button>
             `;
             tr.appendChild(actionTd);
             tbody.appendChild(tr);
@@ -2957,7 +2957,10 @@ document.addEventListener('DOMContentLoaded', () => {
 
     window.editEmpRow = function(index, empId) {
         const idx = resolveEmployeeIndexFromArgs(index, empId);
-        if (idx < 0 || !employeeData[idx]) return;
+        if (idx < 0 || !employeeData[idx]) {
+            alert('تعذر العثور على السجل للتعديل.');
+            return;
+        }
         const emp = employeeData[idx];
         document.getElementById('edit-emp-index').value = idx;
         
@@ -3000,6 +3003,34 @@ document.addEventListener('DOMContentLoaded', () => {
 
         editEmpModal.style.display = 'flex';
     };
+
+    const empDataBody = document.getElementById('emp-data-body');
+    if (empDataBody) {
+        empDataBody.addEventListener('click', (e) => {
+            const parseEmpAction = (btn) => {
+                const index = parseInt(btn.getAttribute('data-emp-index'), 10);
+                const id = decodeURIComponent(btn.getAttribute('data-emp-id') || '');
+                return { index: isNaN(index) ? -1 : index, id };
+            };
+            const delBtn = e.target.closest('.del-emp-btn');
+            if (delBtn) {
+                const { index, id } = parseEmpAction(delBtn);
+                deleteEmpRow(index, id);
+                return;
+            }
+            const editBtn = e.target.closest('.edit-emp-btn');
+            if (editBtn) {
+                const { index, id } = parseEmpAction(editBtn);
+                editEmpRow(index, id);
+                return;
+            }
+            const rateBtn = e.target.closest('.rate-emp-btn');
+            if (rateBtn) {
+                const { index, id } = parseEmpAction(rateBtn);
+                rateEmpFromData(index, id);
+            }
+        });
+    }
 
     if(saveEmpDataBtn) {
         saveEmpDataBtn.addEventListener('click', () => {
