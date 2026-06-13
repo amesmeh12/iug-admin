@@ -53,6 +53,25 @@ document.addEventListener('DOMContentLoaded', () => {
         return employeeData.find(e => normalizeEmpId(e['الرقم الوظيفي']) === norm) || null;
     }
 
+    function resolveEmployeeIndex(emp) {
+        if (!emp) return -1;
+        let idx = employeeData.indexOf(emp);
+        if (idx >= 0) return idx;
+        const norm = normalizeEmpId(emp['الرقم الوظيفي']);
+        if (norm) {
+            idx = employeeData.findIndex(e => normalizeEmpId(e['الرقم الوظيفي']) === norm);
+            if (idx >= 0) return idx;
+        }
+        const name = String(emp['الاسم'] || '').trim();
+        if (name) {
+            return employeeData.findIndex(e =>
+                String(e['الاسم'] || '').trim() === name &&
+                normalizeEmpId(e['الرقم الوظيفي']) === norm
+            );
+        }
+        return -1;
+    }
+
     // --- منطق ملاحظة 2 ---
     // في الخارج + (أكاديمي/حالة خاصة/مسجون/اقترب تقاعده) → يُصنَّف ضمن الحالة الخاصة
     // في الخارج فقط → يُصنَّف «عادي»، مع إبقاء إمكانية استخراج «في الخارج» في التقرير
@@ -2806,7 +2825,8 @@ document.addEventListener('DOMContentLoaded', () => {
         }
         
         filteredData.forEach((emp) => {
-            const ind = employeeData.indexOf(emp); // Real index for editing
+            const ind = resolveEmployeeIndex(emp);
+            const empIdStr = JSON.stringify(String(emp['الرقم الوظيفي'] || ''));
             const tr = document.createElement('tr');
             visibleKeys.forEach(key => {
                 const td = document.createElement('td');
@@ -2818,9 +2838,9 @@ document.addEventListener('DOMContentLoaded', () => {
             });
             const actionTd = document.createElement('td');
             actionTd.innerHTML = `
-                <button class="action-btn rate-row-btn" onclick="rateEmpFromData(${ind})">تقييم</button>
-                <button class="action-btn edit-row-btn" onclick="editEmpRow(${ind})">تعديل</button>
-                <button class="action-btn del-row-btn" onclick="deleteEmpRow(${ind})">حذف</button>
+                <button type="button" class="action-btn rate-row-btn" onclick="rateEmpFromData(${ind}, ${empIdStr})">تقييم</button>
+                <button type="button" class="action-btn edit-row-btn" onclick="editEmpRow(${ind}, ${empIdStr})">تعديل</button>
+                <button type="button" class="action-btn del-row-btn" onclick="deleteEmpRow(${ind}, ${empIdStr})">حذف</button>
             `;
             tr.appendChild(actionTd);
             tbody.appendChild(tr);
@@ -2843,19 +2863,35 @@ document.addEventListener('DOMContentLoaded', () => {
     if(closeEditEmpBtn) closeEditEmpBtn.addEventListener('click', closeEmpModal);
     if(cancelEmpEditBtn) cancelEmpEditBtn.addEventListener('click', closeEmpModal);
 
-    window.deleteEmpRow = function(index) {
-        if (!employeeData[index]) return;
-        const name = employeeData[index]['الاسم'] || employeeData[index]['الرقم الوظيفي'] || '';
+    function resolveEmployeeIndexFromArgs(index, empId) {
+        let idx = Number(index);
+        if (!isNaN(idx) && idx >= 0 && employeeData[idx]) return idx;
+        const norm = normalizeEmpId(empId);
+        if (norm) {
+            idx = employeeData.findIndex(e => normalizeEmpId(e['الرقم الوظيفي']) === norm);
+            if (idx >= 0) return idx;
+        }
+        return -1;
+    }
+
+    window.deleteEmpRow = function(index, empId) {
+        const idx = resolveEmployeeIndexFromArgs(index, empId);
+        if (idx < 0) {
+            alert('تعذر العثور على السجل للحذف.');
+            return;
+        }
+        const name = employeeData[idx]['الاسم'] || employeeData[idx]['الرقم الوظيفي'] || '';
         if (!confirm('هل أنت متأكد من حذف سجل الموظف' + (name ? ' «' + name + '»' : '') + '؟')) return;
-        employeeData.splice(index, 1);
+        employeeData.splice(idx, 1);
         saveEmployeeDataToStorage();
         renderEmpTable();
         refreshMissingEmpsView();
     };
 
-    window.rateEmpFromData = function(index) {
-        if (!employeeData[index]) return;
-        const emp = employeeData[index];
+    window.rateEmpFromData = function(index, empId) {
+        const idx = resolveEmployeeIndexFromArgs(index, empId);
+        if (idx < 0 || !employeeData[idx]) return;
+        const emp = employeeData[idx];
         const evalIdx = findEvalByEmpId(emp['الرقم الوظيفي']);
         if (evalIdx >= 0) {
             window.editRow(evalIdx);
@@ -2879,10 +2915,11 @@ document.addEventListener('DOMContentLoaded', () => {
         window.scrollTo({ top: 0, behavior: 'smooth' });
     };
 
-    window.editEmpRow = function(index) {
-        if (!employeeData[index]) return;
-        const emp = employeeData[index];
-        document.getElementById('edit-emp-index').value = index;
+    window.editEmpRow = function(index, empId) {
+        const idx = resolveEmployeeIndexFromArgs(index, empId);
+        if (idx < 0 || !employeeData[idx]) return;
+        const emp = employeeData[idx];
+        document.getElementById('edit-emp-index').value = idx;
         
         editEmpFields.innerHTML = '';
         
