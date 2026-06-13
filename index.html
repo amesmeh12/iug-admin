@@ -106,6 +106,7 @@
             <button class="tab-btn" data-target="table-view">التقييم (<span id="saved-count">0</span>)</button>
             <button class="tab-btn" data-target="emp-data-view">بيانات الموظفين</button>
             <button class="tab-btn" data-target="statistics-view">الإحصائيات</button>
+            <button type="button" class="tab-btn tab-btn-settings" data-settings-tab>الإعدادات</button>
             <button type="button" class="tab-btn tab-btn-external" data-external="https://amesmeh12.github.io/iug-academi/data-table.html">تقييم الأكاديميين</button>
         </div>
 
@@ -396,6 +397,34 @@
                         </div>
                     </div>
                 </div>
+            </div>
+
+            <div class="quick-eval-filters fade-in">
+                <div class="quick-filter-row">
+                    <label>الدائرة</label>
+                    <input type="text" id="qf-dept" placeholder="ابحث بالدائرة...">
+                </div>
+                <div class="quick-filter-row">
+                    <label>القسم</label>
+                    <input type="text" id="qf-section" placeholder="ابحث بالقسم...">
+                </div>
+                <div class="quick-filter-row">
+                    <label>تاريخ الميلاد</label>
+                    <div class="quick-filter-range">
+                        <input type="date" id="qf-dob-from" title="من">
+                        <span>—</span>
+                        <input type="date" id="qf-dob-to" title="إلى">
+                    </div>
+                </div>
+                <div class="quick-filter-row">
+                    <label>العمر</label>
+                    <div class="quick-filter-range">
+                        <input type="number" id="qf-age-from" placeholder="من" min="0" max="100">
+                        <span>—</span>
+                        <input type="number" id="qf-age-to" placeholder="إلى" min="0" max="100">
+                    </div>
+                </div>
+                <button type="button" class="btn btn-secondary btn-sm" id="qf-clear-btn">مسح التصفية</button>
             </div>
 
             <!-- Top Scrollbar -->

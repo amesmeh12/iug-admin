@@ -370,6 +370,15 @@ body.login-active {
     background-color: var(--card-bg);
 }
 
+.tab-btn-settings {
+    background-color: #f3f4f6;
+    color: var(--text-color);
+}
+
+.tab-btn-settings:hover {
+    background-color: #e5e7eb;
+}
+
 .tab-btn-external {
     background-color: #16a34a;
     color: #fff;
@@ -919,6 +928,61 @@ body.login-active {
 }
 
 /* Table Controls */
+.quick-eval-filters {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.75rem 1rem;
+    align-items: flex-end;
+    padding: 0.75rem 1rem;
+    margin-bottom: 1rem;
+    background: var(--card-bg);
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-md);
+}
+
+.quick-filter-row {
+    display: flex;
+    flex-direction: column;
+    gap: 0.25rem;
+    min-width: 140px;
+}
+
+.quick-filter-row label {
+    font-size: 0.75rem;
+    font-weight: 600;
+    color: var(--text-muted);
+}
+
+.quick-filter-row input[type="text"],
+.quick-filter-row input[type="number"],
+.quick-filter-row input[type="date"] {
+    padding: 0.4rem 0.5rem;
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-sm);
+    font-family: inherit;
+    font-size: 0.85rem;
+}
+
+.quick-filter-range {
+    display: flex;
+    align-items: center;
+    gap: 0.35rem;
+}
+
+.quick-filter-range input {
+    width: 130px;
+}
+
+.quick-filter-range span {
+    color: var(--text-muted);
+    font-size: 0.85rem;
+}
+
+#qf-clear-btn {
+    align-self: flex-end;
+    margin-right: auto;
+}
+
 .table-controls {
     display: flex;
     justify-content: space-between;

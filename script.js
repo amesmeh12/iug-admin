@@ -114,6 +114,15 @@ document.addEventListener('DOMContentLoaded', () => {
     const EMP_STORAGE_KEY = 'employeeData';
     const EMP_SESSION_KEY = 'employeeData_session';
 
+    function normalizeText(text) {
+        if (!text && text !== 0) return '';
+        return String(text).toLowerCase()
+            .replace(/[أإآ]/g, 'ا')
+            .replace(/ة/g, 'ه')
+            .replace(/ي/g, 'ى')
+            .replace(/[\u064B-\u065F]/g, '');
+    }
+
     function computeEmployeeAge(dob) {
         if (!dob && dob !== 0) return '';
         try {
@@ -129,6 +138,68 @@ document.addEventListener('DOMContentLoaded', () => {
         } catch (e) {
             return '';
         }
+    }
+
+    function parseDobToTimestamp(dob) {
+        if (!dob && dob !== 0) return null;
+        const num = Number(dob);
+        if (!isNaN(num) && num > 10000 && num < 90000) {
+            return new Date(Math.round((num - 25569) * 86400 * 1000)).getTime();
+        }
+        const d = new Date(dob);
+        return isNaN(d.getTime()) ? null : d.getTime();
+    }
+
+    function getEvalAge(ev) {
+        const fromDob = computeEmployeeAge(ev.dob);
+        if (fromDob !== '' && fromDob !== null && fromDob !== undefined) {
+            return parseFloat(fromDob);
+        }
+        const emp = findEmployeeByEmpId(ev.id);
+        if (emp) {
+            if (emp['العمر'] !== undefined && emp['العمر'] !== '') {
+                return parseFloat(emp['العمر']);
+            }
+            const empAge = computeEmployeeAge(emp['تاريخ الميلاد']);
+            if (empAge !== '') return parseFloat(empAge);
+        }
+        return null;
+    }
+
+    function matchesQuickEvalFilters(ev) {
+        const deptEl = document.getElementById('qf-dept');
+        const sectionEl = document.getElementById('qf-section');
+        const dobFromEl = document.getElementById('qf-dob-from');
+        const dobToEl = document.getElementById('qf-dob-to');
+        const ageFromEl = document.getElementById('qf-age-from');
+        const ageToEl = document.getElementById('qf-age-to');
+
+        const deptQ = normalizeText((deptEl && deptEl.value) ? deptEl.value.trim() : '');
+        if (deptQ && !normalizeText(ev.dept || '').includes(deptQ)) return false;
+
+        const sectionQ = normalizeText((sectionEl && sectionEl.value) ? sectionEl.value.trim() : '');
+        if (sectionQ && !normalizeText(ev.section || '').includes(sectionQ)) return false;
+
+        const dobTs = parseDobToTimestamp(ev.dob);
+        if (dobFromEl && dobFromEl.value) {
+            const fromTs = new Date(dobFromEl.value).getTime();
+            if (dobTs === null || dobTs < fromTs) return false;
+        }
+        if (dobToEl && dobToEl.value) {
+            const toTs = new Date(dobToEl.value).getTime() + 86400000 - 1;
+            if (dobTs === null || dobTs > toTs) return false;
+        }
+
+        const ageFrom = (ageFromEl && ageFromEl.value !== '') ? parseFloat(ageFromEl.value) : null;
+        const ageTo = (ageToEl && ageToEl.value !== '') ? parseFloat(ageToEl.value) : null;
+        if (ageFrom !== null || ageTo !== null) {
+            const age = getEvalAge(ev);
+            if (age === null || isNaN(age)) return false;
+            if (ageFrom !== null && age < ageFrom) return false;
+            if (ageTo !== null && age > ageTo) return false;
+        }
+
+        return true;
     }
 
     const EMP_EXCEL_KEYS = [
@@ -622,6 +693,11 @@ document.addEventListener('DOMContentLoaded', () => {
             const externalUrl = btn.getAttribute('data-external');
             if (externalUrl) {
                 window.location.href = externalUrl;
+                return;
+            }
+
+            if (btn.hasAttribute('data-settings-tab')) {
+                document.getElementById('settings-btn')?.click();
                 return;
             }
 
@@ -1479,6 +1555,22 @@ document.addEventListener('DOMContentLoaded', () => {
         searchInput.addEventListener('input', () => renderTable());
     }
 
+    ['qf-dept', 'qf-section', 'qf-dob-from', 'qf-dob-to', 'qf-age-from', 'qf-age-to'].forEach(id => {
+        const el = document.getElementById(id);
+        if (el) el.addEventListener('input', () => renderTable());
+        if (el && el.type === 'date') el.addEventListener('change', () => renderTable());
+    });
+    const qfClearBtn = document.getElementById('qf-clear-btn');
+    if (qfClearBtn) {
+        qfClearBtn.addEventListener('click', () => {
+            ['qf-dept', 'qf-section', 'qf-dob-from', 'qf-dob-to', 'qf-age-from', 'qf-age-to'].forEach(id => {
+                const el = document.getElementById(id);
+                if (el) el.value = '';
+            });
+            renderTable();
+        });
+    }
+
     const colMgrBtn = document.getElementById('col-mgr-btn');
     const colDropdown = document.getElementById('col-dropdown');
     const colDropdownList = document.getElementById('col-dropdown-list');
@@ -1547,6 +1639,9 @@ document.addEventListener('DOMContentLoaded', () => {
         { key: "notes", label: "الملاحظات", type: 'text' },
         { key: "notes2", label: "ملاحظة2", type: 'multiselect', options: ['في الخارج', 'أكاديمي', 'حالة خاصة', 'مسجون/ فقيد', 'اقترب تقاعده', 'عادي'] },
         { key: "dept", label: "الدائرة", type: 'text' },
+        { key: "section", label: "القسم", type: 'text' },
+        { key: "dob", label: "تاريخ الميلاد", type: 'date' },
+        { key: "age", label: "العمر", type: 'age' },
         { key: "p1", label: "أ1 - الاستمرارية", type: 'number' },
         { key: "p2", label: "أ2 - الاستجابة", type: 'number' },
         { key: "p3", label: "أ3 - شكاوى", type: 'number' },
@@ -1612,6 +1707,16 @@ document.addEventListener('DOMContentLoaded', () => {
                         <option value="اقترب تقاعده">اقترب تقاعده</option>
                     </select>
                 `;
+            } else if (selectedOpt.dataset.type === 'date') {
+                inputsContainer.innerHTML = `
+                    <input type="date" class="filter-min" style="flex: 1; width: 100%;">
+                    <input type="date" class="filter-max" style="flex: 1; width: 100%;">
+                `;
+            } else if (selectedOpt.dataset.type === 'age') {
+                inputsContainer.innerHTML = `
+                    <input type="number" class="filter-min" placeholder="العمر من" min="0" max="100" style="flex: 1; width: 100%;">
+                    <input type="number" class="filter-max" placeholder="العمر إلى" min="0" max="100" style="flex: 1; width: 100%;">
+                `;
             } else {
                 inputsContainer.innerHTML = `
                     <input type="number" class="filter-min" placeholder="من (Min)" step="0.5" style="flex: 1; width: 100%;">
@@ -1662,12 +1767,37 @@ document.addEventListener('DOMContentLoaded', () => {
                         });
                     }
                 }
+            } else if (type === 'date') {
+                const minInput = row.querySelector('.filter-min');
+                const maxInput = row.querySelector('.filter-max');
+                const minStr = minInput ? minInput.value : '';
+                const maxStr = maxInput ? maxInput.value : '';
+                if (minStr !== '' || maxStr !== '') {
+                    activeFilters.push({
+                        key: key,
+                        type: 'date',
+                        min: minStr !== '' ? new Date(minStr).getTime() : -Infinity,
+                        max: maxStr !== '' ? new Date(maxStr).getTime() + 86400000 - 1 : Infinity
+                    });
+                }
+            } else if (type === 'age') {
+                const minInput = row.querySelector('.filter-min');
+                const maxInput = row.querySelector('.filter-max');
+                const minStr = minInput ? minInput.value : '';
+                const maxStr = maxInput ? maxInput.value : '';
+                if (minStr !== '' || maxStr !== '') {
+                    activeFilters.push({
+                        key: key,
+                        type: 'age',
+                        min: minStr !== '' ? parseFloat(minStr) : -Infinity,
+                        max: maxStr !== '' ? parseFloat(maxStr) : Infinity
+                    });
+                }
             } else {
                 const minInput = row.querySelector('.filter-min');
                 const maxInput = row.querySelector('.filter-max');
                 const minStr = minInput ? minInput.value : '';
                 const maxStr = maxInput ? maxInput.value : '';
-                
                 if (minStr !== '' || maxStr !== '') {
                     activeFilters.push({
                         key: key,
@@ -1901,7 +2031,10 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
             }
             
-            // 1.5 Unevaluated Logic
+            // 1.5 Quick filters (دائرة، قسم، عمر، تاريخ ميلاد)
+            if (!matchesQuickEvalFilters(ev)) return false;
+
+            // 1.6 Unevaluated Logic
             if (showUnevaluatedOnly) {
                 const ts = parseFloat(ev.totalScore) || 0;
                 const notes = (ev.notes || '').trim();
@@ -1920,6 +2053,14 @@ document.addEventListener('DOMContentLoaded', () => {
                 } else if (filter.type === 'multiselect') {
                     const hasMatch = filter.values.some(v => matchesNotes2Category(ev[filter.key], v));
                     if (!hasMatch) return false;
+                } else if (filter.type === 'date') {
+                    const dobTs = parseDobToTimestamp(ev.dob);
+                    if (dobTs === null) return false;
+                    if (dobTs < filter.min || dobTs > filter.max) return false;
+                } else if (filter.type === 'age') {
+                    const age = getEvalAge(ev);
+                    if (age === null || isNaN(age)) return false;
+                    if (age < filter.min || age > filter.max) return false;
                 } else {
                     let val = parseFloat(ev[filter.key]) || 0;
                     if (val < filter.min || val > filter.max) return false;
@@ -1995,9 +2136,10 @@ document.addEventListener('DOMContentLoaded', () => {
                 const td = document.createElement('td');
                 
                 if (col.key === 'actions') {
+                    const safeId = JSON.stringify(String(ev.id || ''));
                     td.innerHTML = `
                         <button class="action-btn edit-row-btn" onclick="editRow(${originalIndex})">تعديل</button>
-                        <button class="action-btn del-row-btn" onclick="deleteRow(${originalIndex})">حذف</button>
+                        <button class="action-btn del-row-btn" onclick="deleteEvalById(${safeId})">حذف</button>
                     `;
                 } else if (col.key === 'dob') {
                     td.innerHTML = formatDob(ev[col.key] || '');
@@ -2092,13 +2234,21 @@ document.addEventListener('DOMContentLoaded', () => {
         calculateScores();
     };
 
-    window.deleteRow = function(index) {
-        if(confirm('هل أنت متأكد من حذف هذا التقييم؟')) {
+    window.deleteEvalById = function(empId) {
+        const index = findEvalByEmpId(empId);
+        if (index < 0) return;
+        if (confirm('هل أنت متأكد من حذف هذا التقييم؟')) {
             evaluations.splice(index, 1);
             saveToLocal();
             renderTable();
             updateSavedCount();
+            refreshMissingEmpsView();
         }
+    };
+
+    window.deleteRow = function(index) {
+        if (index < 0 || !evaluations[index]) return;
+        deleteEvalById(evaluations[index].id);
     };
 
     function saveToLocal() {
@@ -2670,6 +2820,7 @@ document.addEventListener('DOMContentLoaded', () => {
             actionTd.innerHTML = `
                 <button class="action-btn rate-row-btn" onclick="rateEmpFromData(${ind})">تقييم</button>
                 <button class="action-btn edit-row-btn" onclick="editEmpRow(${ind})">تعديل</button>
+                <button class="action-btn del-row-btn" onclick="deleteEmpRow(${ind})">حذف</button>
             `;
             tr.appendChild(actionTd);
             tbody.appendChild(tr);
@@ -2691,6 +2842,16 @@ document.addEventListener('DOMContentLoaded', () => {
 
     if(closeEditEmpBtn) closeEditEmpBtn.addEventListener('click', closeEmpModal);
     if(cancelEmpEditBtn) cancelEmpEditBtn.addEventListener('click', closeEmpModal);
+
+    window.deleteEmpRow = function(index) {
+        if (!employeeData[index]) return;
+        const name = employeeData[index]['الاسم'] || employeeData[index]['الرقم الوظيفي'] || '';
+        if (!confirm('هل أنت متأكد من حذف سجل الموظف' + (name ? ' «' + name + '»' : '') + '؟')) return;
+        employeeData.splice(index, 1);
+        saveEmployeeDataToStorage();
+        renderEmpTable();
+        refreshMissingEmpsView();
+    };
 
     window.rateEmpFromData = function(index) {
         if (!employeeData[index]) return;
