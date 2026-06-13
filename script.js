@@ -47,6 +47,21 @@ document.addEventListener('DOMContentLoaded', () => {
         return evaluations.findIndex(ev => normalizeEmpId(ev.id) === norm);
     }
 
+    function resolveEvalIndex(ev) {
+        if (!ev) return -1;
+        let idx = evaluations.indexOf(ev);
+        if (idx >= 0) return idx;
+        return findEvalByEmpId(ev.id);
+    }
+
+    function resolveEvalIndexFromArgs(index, empId) {
+        let idx = Number(index);
+        if (!isNaN(idx) && idx >= 0 && evaluations[idx]) return idx;
+        const found = findEvalByEmpId(empId);
+        if (found >= 0) return found;
+        return -1;
+    }
+
     function findEmployeeByEmpId(empId) {
         const norm = normalizeEmpId(empId);
         if (!norm) return null;
@@ -2139,8 +2154,8 @@ document.addEventListener('DOMContentLoaded', () => {
         topScrollContainer.style.display = 'block';
 
         filteredEvals.forEach((ev) => {
-            // Find original index for edit/delete functions
-            const originalIndex = findEvalByEmpId(ev.id);
+            const evalIndex = resolveEvalIndex(ev);
+            const evalIdEnc = encodeURIComponent(String(ev.id || ''));
             
             const tr = document.createElement('tr');
             
@@ -2155,10 +2170,9 @@ document.addEventListener('DOMContentLoaded', () => {
                 const td = document.createElement('td');
                 
                 if (col.key === 'actions') {
-                    const safeId = JSON.stringify(String(ev.id || ''));
                     td.innerHTML = `
-                        <button class="action-btn edit-row-btn" onclick="editRow(${originalIndex})">تعديل</button>
-                        <button class="action-btn del-row-btn" onclick="deleteEvalById(${safeId})">حذف</button>
+                        <button type="button" class="action-btn edit-row-btn edit-eval-btn" data-eval-index="${evalIndex}" data-eval-id="${evalIdEnc}">تعديل</button>
+                        <button type="button" class="action-btn del-row-btn del-eval-btn" data-eval-index="${evalIndex}" data-eval-id="${evalIdEnc}">حذف</button>
                     `;
                 } else if (col.key === 'dob') {
                     td.innerHTML = formatDob(ev[col.key] || '');
@@ -2207,8 +2221,13 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
-    window.editRow = function(index) {
-        const ev = evaluations[index];
+    window.editRow = function(index, empId) {
+        const idx = resolveEvalIndexFromArgs(index, empId);
+        if (idx < 0) {
+            alert('تعذر العثور على التقييم للتعديل.');
+            return;
+        }
+        const ev = evaluations[idx];
         
         // Switch to form tab
         document.querySelector('.tab-btn[data-target="form-view"]').click();
@@ -2253,9 +2272,12 @@ document.addEventListener('DOMContentLoaded', () => {
         calculateScores();
     };
 
-    window.deleteEvalById = function(empId) {
-        const index = findEvalByEmpId(empId);
-        if (index < 0) return;
+    window.deleteEvalById = function(empId, fallbackIndex) {
+        const index = resolveEvalIndexFromArgs(fallbackIndex, empId);
+        if (index < 0) {
+            alert('تعذر العثور على التقييم للحذف.');
+            return;
+        }
         if (confirm('هل أنت متأكد من حذف هذا التقييم؟')) {
             evaluations.splice(index, 1);
             saveToLocal();
@@ -2265,9 +2287,27 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     };
 
+    if (tableBody) {
+        tableBody.addEventListener('click', (e) => {
+            const delBtn = e.target.closest('.del-eval-btn');
+            if (delBtn) {
+                const index = parseInt(delBtn.getAttribute('data-eval-index'), 10);
+                const id = decodeURIComponent(delBtn.getAttribute('data-eval-id') || '');
+                deleteEvalById(id, isNaN(index) ? -1 : index);
+                return;
+            }
+            const editBtn = e.target.closest('.edit-eval-btn');
+            if (editBtn) {
+                const index = parseInt(editBtn.getAttribute('data-eval-index'), 10);
+                const id = decodeURIComponent(editBtn.getAttribute('data-eval-id') || '');
+                editRow(isNaN(index) ? -1 : index, id);
+            }
+        });
+    }
+
     window.deleteRow = function(index) {
         if (index < 0 || !evaluations[index]) return;
-        deleteEvalById(evaluations[index].id);
+        deleteEvalById(evaluations[index].id, index);
     };
 
     function saveToLocal() {
